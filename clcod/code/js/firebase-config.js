@@ -46,7 +46,7 @@ window.saveReport = async function (reportData) {
       ...reportData,
       createdAt: new Date().toISOString()
     });
-  } catch (e) { console.error('saveReport:', e); }
+  } catch (e) { console.error('saveReport (config):', e); throw e; }
 };
 
 // Load all reports for current user, newest first

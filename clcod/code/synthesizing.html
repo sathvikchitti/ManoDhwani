@@ -392,20 +392,34 @@
         sessionStorage.removeItem('md_textInputVal');
 
         const isDepressed = result.riskLevel === 'Moderate' || result.riskLevel === 'High';
+
         if (!isDepressed) {
-          // Wait for Firebase auth to be ready before saving (fixes race on first session)
+          // Low Risk — save directly here, skip questionnaire
           const maxWait = 8000;
           const start = Date.now();
           while (!window.saveReport && (Date.now() - start) < maxWait) {
             await new Promise(r => setTimeout(r, 100));
           }
           if (window.saveReport) {
-            const emptyQ = { answers: { elevatedMood: false, reducedSleep: false, impulsivity: false, racingThoughts: false }, duration: 0, seasonalPattern: 'No seasonal pattern', postpartum: 'Not applicable', impairment: 30 };
-            await window.saveReport({ userInfo: { ...userInfo }, riskLevel: result.riskLevel, confidenceScore: result.confidenceScore, modelProb: result.modelProb ?? null, emotionalSignals: result.emotionalSignals, contributions: result.contributions, recommendations: result.recommendations, insights: result.insights ?? null, adet: result.adet ?? null, depressionType: null, inputModes: { audio: !!audioBase64, text: !!(textInputVal && textInputVal.trim()) }, questionnaire: emptyQ });
+            await window.saveReport({
+              userInfo: { ...userInfo },
+              riskLevel: result.riskLevel,
+              confidenceScore: result.confidenceScore,
+              modelProb: result.modelProb ?? null,
+              emotionalSignals: result.emotionalSignals,
+              contributions: result.contributions,
+              recommendations: result.recommendations,
+              insights: result.insights ?? null,
+              adet: result.adet ?? null,
+              depressionType: null,
+              inputModes: { audio: !!audioBase64, text: !!(textInputVal && textInputVal.trim()) },
+              questionnaire: null,
+            });
           }
           sessionStorage.setItem('pendingPageTransition', 'results');
           window.location.href = 'results.html';
         } else {
+          // Moderate / High — collect questionnaire answers first
           sessionStorage.setItem('md_riskLevel', result.riskLevel);
           const prob = result.modelProb != null ? Math.round(result.modelProb) : Math.round(result.confidenceScore);
           sessionStorage.setItem('md_riskProb', String(prob));

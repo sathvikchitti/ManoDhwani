@@ -384,15 +384,28 @@
       if (pfGender) pfGender.textContent = userInfo.gender || cu.gender || '—';
 
       // Load reports
-      try { _profileReportsCache = window.loadReports ? await window.loadReports() : []; } catch (_) { _profileReportsCache = []; }
+      let _loadError = false;
+      try {
+        _profileReportsCache = (window.loadReports && window.currentUser) ? await window.loadReports() : [];
+      } catch (_) {
+        _profileReportsCache = [];
+        _loadError = true;
+        const errHtml = `<div style="text-align:center;padding:48px 24px;color:#64748b;"><div style="font-size:32px;margin-bottom:12px;">⚠️</div><div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;">Could not load session data. Check your connection and refresh.</div></div>`;
+        const chartEl = document.getElementById('pf-chart-svg');
+        if (chartEl) chartEl.innerHTML = errHtml;
+        const histEl = document.getElementById('pf-history-list');
+        if (histEl) histEl.innerHTML = errHtml;
+      }
       window._cachedReports = _profileReportsCache;
 
       const totalEl = document.getElementById('pf-total-sessions');
       if (totalEl) totalEl.textContent = _profileReportsCache.length;
 
       _profileCurrentTab = 'daily';
-      _renderProfileTab('daily');
-      _renderProfileHistory();
+      if (!_loadError) {
+        _renderProfileTab('daily');
+        _renderProfileHistory();
+      }
 
       document.getElementById('profile-loading').style.display = 'none';
       document.getElementById('profile-content').style.display = 'block';
@@ -411,11 +424,11 @@
       let buckets = [];
 
       if (tab === 'hourly') {
-        for (let h = 23; h >= 0; h--) { const d = new Date(now); d.setMinutes(0, 0, 0); d.setHours(d.getHours() - h); buckets.push({ label: d.getHours() + ':00', ts: d.getTime(), value: null }); }
-        reports.forEach(r => { const t = (_toDate(r.createdAt)||new Date()).getTime(); const age = now - t; if (age > 24 * 3600000) return; const hi = Math.floor((now - t) / 3600000); const idx = 23 - hi; if (idx >= 0) { const val = r.modelProb ?? r.confidenceScore ?? null; if (val !== null && (buckets[idx].value === null || t > buckets[idx]._latest)) { buckets[idx].value = val; buckets[idx]._latest = t; } } });
+        for (let h = 23; h >= 0; h--) { const d = new Date(now); d.setMinutes(0, 0, 0, 0); d.setHours(d.getHours() - h); buckets.push({ label: d.getHours() + ':00', hour: d.getHours(), dateStr: d.toDateString(), ts: d.getTime(), value: null, _latest: 0 }); }
+        reports.forEach(r => { const dt = (_toDate(r.createdAt) || new Date()); const t = dt.getTime(); const age = now - t; if (age > 24 * 3600000) return; const b = buckets.find(x => x.hour === dt.getHours() && x.dateStr === dt.toDateString()); if (!b) return; const val = r.modelProb ?? r.confidenceScore ?? null; if (val !== null && (b.value === null || t > b._latest)) { b.value = val; b._latest = t; } });
       } else if (tab === 'daily') {
-        for (let d = 6; d >= 0; d--) { const dt = new Date(now); dt.setDate(dt.getDate() - d); buckets.push({ label: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), dateStr: dt.toDateString(), value: null, _latest: 0 }); }
-        reports.forEach(r => { const dt = (_toDate(r.createdAt)||new Date()); const b = buckets.find(x => x.dateStr === dt.toDateString()); if (!b) return; const val = r.modelProb ?? r.confidenceScore ?? null; const t = dt.getTime(); if (val !== null && (b.value === null || t > b._latest)) { b.value = val; b._latest = t; } });
+        for (let d = 6; d >= 0; d--) { const dt = new Date(now); dt.setDate(dt.getDate() - d); dt.setHours(0, 0, 0, 0); buckets.push({ label: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), dayStart: dt.getTime(), dayEnd: dt.getTime() + 86400000, value: null, _latest: 0 }); }
+        reports.forEach(r => { const dt = (_toDate(r.createdAt)||new Date()); const t = dt.getTime(); const b = buckets.find(x => t >= x.dayStart && t < x.dayEnd); if (!b) return; const val = r.modelProb ?? r.confidenceScore ?? null; if (val !== null && (b.value === null || t > b._latest)) { b.value = val; b._latest = t; } });
       } else if (tab === 'weekly') {
         for (let w = 7; w >= 0; w--) { const dt = new Date(now); dt.setDate(dt.getDate() - w * 7); const ws = dt.getTime() - (dt.getDay()) * 86400000; buckets.push({ label: 'Wk ' + dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), weekStart: ws, weekEnd: ws + 7 * 86400000, value: null, _latest: 0 }); }
         reports.forEach(r => { const t = (_toDate(r.createdAt)||new Date()).getTime(); const b = buckets.find(x => t >= x.weekStart && t < x.weekEnd); if (!b) return; const val = r.modelProb ?? r.confidenceScore ?? null; if (val !== null && (b.value === null || t > b._latest)) { b.value = val; b._latest = t; } });
@@ -427,8 +440,8 @@
       const chartEl = document.getElementById('pf-chart-svg');
       if (!chartEl) return;
       const filled = buckets.map((b, i) => ({ ...b, i })).filter(b => b.value !== null);
-      if (filled.length < 2) {
-        chartEl.innerHTML = `<div style="text-align:center;padding:48px 24px;color:#64748b;"><div style="font-size:32px;margin-bottom:12px;">📊</div><div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;">Not enough data for this time range</div><div style="font-size:11px;margin-top:6px;color:#94a3b8;">Run more sessions to see your trend</div></div>`;
+      if (filled.length === 0) {
+        chartEl.innerHTML = `<div style="text-align:center;padding:48px 24px;color:#64748b;"><div style="font-size:32px;margin-bottom:12px;">📊</div><div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;">No sessions in this time range</div><div style="font-size:11px;margin-top:6px;color:#94a3b8;">Switch to a wider range or run a session</div></div>`;
         return;
       }
 
@@ -442,6 +455,7 @@
       const stepLabel = Math.ceil(n / 6);
       const xLabels = buckets.map((b, i) => { if (i % stepLabel !== 0 && i !== n - 1) return ''; return `<text x="${xScale(i)}" y="${H - 8}" text-anchor="middle" fill="#64748b" font-size="9" font-family="Space Grotesk,sans-serif">${b.label}</text>`; }).join('');
       const dots = filled.map(b => { const x = xScale(b.i), y = yScale(b.value); const clr = b.value >= 62 ? '#ef4444' : b.value >= 52 ? '#f59e0b' : '#22c55e'; return `<circle cx="${x}" cy="${y}" r="5" fill="${clr}" stroke="#d8d8d8" stroke-width="2"><title>${b.label}: ${Math.round(b.value)}% ManoDhwani Probability Score</title></circle>`; }).join('');
+      const singleLabel = filled.length === 1 ? `<text x="${xScale(filled[0].i)}" y="${yScale(filled[0].value) - 12}" text-anchor="middle" fill="#64748b" font-size="10" font-family="Space Grotesk,sans-serif">${Math.round(filled[0].value)}% · ${filled[0].label}</text>` : '';
 
       chartEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible;" xmlns="http://www.w3.org/2000/svg">
     <defs><linearGradient id="pf-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8e0008" stop-opacity="0.15"/><stop offset="100%" stop-color="#8e0008" stop-opacity="0.0"/></linearGradient></defs>
@@ -451,7 +465,7 @@
     ${yGuides}
     <path d="${areaPath}" fill="url(#pf-grad)"/>
     <polyline points="${pts}" fill="none" stroke="#8e0008" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-    ${dots}${xLabels}
+    ${dots}${singleLabel}${xLabels}
     <text x="${PAD.left + innerW + 5}" y="${yScale(62) + 4}" fill="rgba(239,68,68,0.5)" font-size="8" font-family="Space Grotesk">High</text>
     <text x="${PAD.left + innerW + 5}" y="${yScale(52) + 4}" fill="rgba(245,158,11,0.5)" font-size="8" font-family="Space Grotesk">Mod</text>
   </svg>`;
@@ -523,6 +537,87 @@
     };
 
     const FLASK_API_URL_PF = 'https://sense123-psychsense.hf.space';
+
+    // ── Trajectory chart helpers (mirrors results.html) ────────────────
+    function _toDate(v) {
+      if (!v) return null;
+      if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000);
+      if (typeof v.toDate === 'function') return v.toDate();
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    async function generateAdetChartHtml(suffix = '') {
+      let reports = [];
+      if (window.loadReports && window.currentUser) {
+        try { reports = await window.loadReports(); } catch(e) { console.error('[chart] loadReports error', e); }
+      }
+      if (!reports || reports.length === 0) return '';
+
+      const withDates = reports.map(r => ({ ...r, _date: _toDate(r.createdAt) })).filter(r => r._date);
+      const uniqueDates = new Set(withDates.map(r => r._date.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})));
+      if (withDates.length < 2 && uniqueDates.size !== 1) return '';
+
+      const dailyMap = new Map();
+      withDates.forEach(r => {
+        const k = r._date.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
+        if (!dailyMap.has(k) || r._date > dailyMap.get(k)._date) dailyMap.set(k, r);
+      });
+      const daily = [...dailyMap.values()].sort((a,b) => a._date - b._date).slice(-7);
+
+      if (daily.length === 1) {
+        const singleReport = daily[0];
+        const val = singleReport.modelProb != null ? singleReport.modelProb : (singleReport.confidenceScore || 0);
+        const dateLabel = singleReport._date.toLocaleDateString('en-GB', {day:'2-digit', month:'short'});
+        const W=800, H=200, px=48, py=40;
+        const pW = W-2*px, pH = H-2*py;
+        const cx = W / 2;
+        const cy = H - py - (val / 100 * pH);
+        const c = val >= 62 ? '#ef4444' : val >= 52 ? '#f59e0b' : '#22c55e';
+        let svg = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;font-family:'Arial','Helvetica',sans-serif;">`;
+        svg += `<defs><linearGradient id="chartGrad${suffix}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#bb000e" stop-opacity="0.18"/><stop offset="100%" stop-color="#bb000e" stop-opacity="0.01"/></linearGradient></defs>`;
+        [0,25,50,75,100].forEach(l => {
+          const y = H - py - (l / 100 * pH);
+          svg += `<line x1="${px}" y1="${y}" x2="${W-px}" y2="${y}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 3"/>`;
+          svg += `<text x="${px-8}" y="${y+4}" fill="#94a3b8" font-size="10" text-anchor="end">${l}%</text>`;
+        });
+        svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${c}" stroke="#fff" stroke-width="2"/>`;
+        svg += `<text x="${cx}" y="${cy-12}" fill="${c}" font-size="11" font-weight="700" text-anchor="middle">${Math.round(val)}%</text>`;
+        svg += `<text x="${cx}" y="${H-py+18}" fill="#94a3b8" font-size="10" text-anchor="middle">${dateLabel}</text>`;
+        svg += '</svg>';
+        return `<div style="width:100%;overflow-x:auto;padding-bottom:4px;">${svg}</div>`;
+      }
+
+      if (daily.length < 2) return '';
+
+      const W=800, H=200, px=48, py=40;
+      const pW = W-2*px, pH = H-2*py;
+      const stepX = pW / (daily.length - 1);
+      const pts = daily.map((r, i) => {
+        const val = r.modelProb != null ? r.modelProb : (r.confidenceScore || 0);
+        const label = r._date.toLocaleDateString('en-GB', {day:'2-digit', month:'short'});
+        return { x: px + i * stepX, y: H - py - (val / 100 * pH), val, label };
+      });
+      const areaPath = `M${pts[0].x},${H-py} ` + pts.map(p=>`L${p.x},${p.y}`).join(' ') + ` L${pts[pts.length-1].x},${H-py} Z`;
+      let svg = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;font-family:'Arial','Helvetica',sans-serif;">`;
+      svg += `<defs><linearGradient id="chartGrad${suffix}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#bb000e" stop-opacity="0.18"/><stop offset="100%" stop-color="#bb000e" stop-opacity="0.01"/></linearGradient></defs>`;
+      [0,25,50,75,100].forEach(l => {
+        const y = H - py - (l / 100 * pH);
+        svg += `<line x1="${px}" y1="${y}" x2="${W-px}" y2="${y}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 3"/>`;
+        svg += `<text x="${px-8}" y="${y+4}" fill="#94a3b8" font-size="10" text-anchor="end">${l}%</text>`;
+      });
+      svg += `<path d="${areaPath}" fill="url(#chartGrad${suffix})"/>`;
+      svg += `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="#bb000e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+      pts.forEach(p => {
+        const c = p.val >= 62 ? '#ef4444' : p.val >= 52 ? '#f59e0b' : '#22c55e';
+        svg += `<circle cx="${p.x}" cy="${p.y}" r="6" fill="${c}" stroke="#fff" stroke-width="2"/>`;
+        svg += `<text x="${p.x}" y="${p.y-12}" fill="${c}" font-size="11" font-weight="700" text-anchor="middle">${Math.round(p.val)}%</text>`;
+        svg += `<text x="${p.x}" y="${H-py+18}" fill="#94a3b8" font-size="10" text-anchor="middle">${p.label}</text>`;
+      });
+      svg += '</svg>';
+      return `<div style="width:100%;overflow-x:auto;padding-bottom:4px;">${svg}</div>`;
+    }
+    // ── End trajectory chart helpers ───────────────────────────────────
 
     window.downloadHistoricalReport = async function(idx) {
       const r = window._cachedReports[idx];
@@ -596,6 +691,13 @@
       const disorderDesc = depInfoFull ? `<strong>${depType}</strong> — ${depInfoFull.desc}` : '';
       const disorderTags = depType ? [depType, ...(r.tags || [])] : ['No Disorder Detected'];
 
+      // Pre-fetch trajectory chart SVG (poll until loadReports is ready, max 3 s)
+      const trajectoryChartSvg = await (function waitChart(n) {
+        if (window.loadReports && window.currentUser) return generateAdetChartHtml('_pdf');
+        if (n <= 0) return Promise.resolve('');
+        return new Promise(res => setTimeout(() => waitChart(n - 1).then(res), 300));
+      })(10);
+
       const reportPayload = {
         report_id:           reportId,
         risk_level:          isDepressed ? `${riskClass} Risk` : 'Low Risk',
@@ -617,7 +719,7 @@
         next_steps:     nextSteps,
         city:           'Hyderabad',
         doctors:        [],
-        trajectory_chart_svg: '',
+        trajectory_chart_svg: trajectoryChartSvg,
       };
 
       try {
@@ -686,11 +788,11 @@
       const now = new Date();
       let buckets = [];
       if (tab === 'hourly') {
-        for (let h = 23; h >= 0; h--) { const d = new Date(now); d.setMinutes(0,0,0); d.setHours(d.getHours()-h); buckets.push({label:d.getHours()+':00',ts:d.getTime(),value:null,_latest:0}); }
-        reports.forEach(r => { const t=(_toDate(r.createdAt)||new Date()).getTime(); const age=now-t; if(age>24*3600000)return; const hi=Math.floor((now-t)/3600000); const idx=23-hi; if(idx>=0){const val=r.modelProb??r.confidenceScore??null; if(val!==null&&(buckets[idx].value===null||t>buckets[idx]._latest)){buckets[idx].value=val;buckets[idx]._latest=t;}} });
+        for (let h = 23; h >= 0; h--) { const d = new Date(now); d.setMinutes(0,0,0,0); d.setHours(d.getHours()-h); buckets.push({label:d.getHours()+':00',hour:d.getHours(),dateStr:d.toDateString(),ts:d.getTime(),value:null,_latest:0}); }
+        reports.forEach(r => { const dt=(_toDate(r.createdAt)||new Date()); const t=dt.getTime(); const age=now-t; if(age>24*3600000)return; const b=buckets.find(x=>x.hour===dt.getHours()&&x.dateStr===dt.toDateString()); if(!b)return; const val=r.modelProb??r.confidenceScore??null; if(val!==null&&(b.value===null||t>b._latest)){b.value=val;b._latest=t;} });
       } else if (tab === 'daily') {
-        for (let d=6;d>=0;d--){const dt=new Date(now);dt.setDate(dt.getDate()-d);buckets.push({label:dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}),dateStr:dt.toDateString(),value:null,_latest:0});}
-        reports.forEach(r=>{const dt=(_toDate(r.createdAt)||new Date());const b=buckets.find(x=>x.dateStr===dt.toDateString());if(!b)return;const val=r.modelProb??r.confidenceScore??null;const t=dt.getTime();if(val!==null&&(b.value===null||t>b._latest)){b.value=val;b._latest=t;}});
+        for (let d=6;d>=0;d--){const dt=new Date(now);dt.setDate(dt.getDate()-d);dt.setHours(0,0,0,0);buckets.push({label:dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}),dayStart:dt.getTime(),dayEnd:dt.getTime()+86400000,value:null,_latest:0});}
+        reports.forEach(r=>{const dt=(_toDate(r.createdAt)||new Date());const t=dt.getTime();const b=buckets.find(x=>t>=x.dayStart&&t<x.dayEnd);if(!b)return;const val=r.modelProb??r.confidenceScore??null;if(val!==null&&(b.value===null||t>b._latest)){b.value=val;b._latest=t;}});
       } else if (tab === 'weekly') {
         for (let w=7;w>=0;w--){const dt=new Date(now);dt.setDate(dt.getDate()-w*7);const ws=dt.getTime()-(dt.getDay())*86400000;buckets.push({label:'Wk '+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}),weekStart:ws,weekEnd:ws+7*86400000,value:null,_latest:0});}
         reports.forEach(r=>{const t=(_toDate(r.createdAt)||new Date()).getTime();const b=buckets.find(x=>t>=x.weekStart&&t<x.weekEnd);if(!b)return;const val=r.modelProb??r.confidenceScore??null;if(val!==null&&(b.value===null||t>b._latest)){b.value=val;b._latest=t;}});
@@ -701,8 +803,8 @@
       const chartEl = document.getElementById(containerId);
       if (!chartEl) return;
       const filled = buckets.map((b,i)=>({...b,i})).filter(b=>b.value!==null);
-      if (filled.length < 2) {
-        chartEl.innerHTML=`<div style="text-align:center;padding:48px 24px;color:#64748b;"><div style="font-size:32px;margin-bottom:12px;">📊</div><div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;">Not enough data for this time range</div></div>`;
+      if (filled.length === 0) {
+        chartEl.innerHTML=`<div style="text-align:center;padding:48px 24px;color:#64748b;"><div style="font-size:32px;margin-bottom:12px;">📊</div><div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;">No sessions in this time range</div><div style="font-size:11px;margin-top:6px;color:#94a3b8;">Switch to a wider range or run a session</div></div>`;
         return;
       }
       const W=780,H=240,PAD={top:24,right:48,bottom:48,left:48};
@@ -715,6 +817,7 @@
       const stepLabel=Math.ceil(n/6);
       const xLabels=buckets.map((b,i)=>{if(i%stepLabel!==0&&i!==n-1)return '';return `<text x="${xScale(i)}" y="${H-8}" text-anchor="middle" fill="#64748b" font-size="9" font-family="Space Grotesk,sans-serif">${b.label}</text>`;}).join('');
       const dots=filled.map(b=>{const x=xScale(b.i),y=yScale(b.value);const clr=b.value>=62?'#ef4444':b.value>=52?'#f59e0b':'#22c55e';return `<circle cx="${x}" cy="${y}" r="6" fill="${clr}" stroke="#fff" stroke-width="2"><title>${b.label}: ${Math.round(b.value)}%</title></circle>`;}).join('');
+      const singleLabel = filled.length === 1 ? `<text x="${xScale(filled[0].i)}" y="${yScale(filled[0].value) - 12}" text-anchor="middle" fill="#64748b" font-size="10" font-family="Space Grotesk,sans-serif">${Math.round(filled[0].value)}% · ${filled[0].label}</text>` : '';
       chartEl.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible;" xmlns="http://www.w3.org/2000/svg">
         <defs><linearGradient id="modal-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8e0008" stop-opacity="0.15"/><stop offset="100%" stop-color="#8e0008" stop-opacity="0.0"/></linearGradient></defs>
         <rect x="${PAD.left}" y="${yScale(100)}" width="${innerW}" height="${yScale(62)-yScale(100)}" fill="rgba(239,68,68,0.04)"/>
@@ -723,7 +826,7 @@
         ${yGuides}
         <path d="${areaPath}" fill="url(#modal-grad)"/>
         <polyline points="${pts}" fill="none" stroke="#8e0008" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-        ${dots}${xLabels}
+        ${dots}${singleLabel}${xLabels}
         <text x="${PAD.left+innerW+5}" y="${yScale(62)+4}" fill="rgba(239,68,68,0.5)" font-size="8" font-family="Space Grotesk">High</text>
         <text x="${PAD.left+innerW+5}" y="${yScale(52)+4}" fill="rgba(245,158,11,0.5)" font-size="8" font-family="Space Grotesk">Mod</text>
       </svg>`;

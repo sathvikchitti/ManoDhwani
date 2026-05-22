@@ -239,26 +239,65 @@
     <!-- Longitudinal Trajectory -->
     <div class="mb-20">
       <div class="flex items-center gap-4 mb-6">
-        <h3 class="font-label text-xs uppercase tracking-widest text-neutral-500">AEDT(Adaptive Emotional Digital Twin)</h3>
+        <h3 class="font-label text-xs uppercase tracking-widest text-neutral-500">ADET — Adaptive Emotional Digital Twin</h3>
         <div class="h-px bg-neutral-300 flex-1"></div>
         <span class="font-label text-[10px] text-neutral-400">04</span>
       </div>
-      <div class="glass-panel p-8">
-        <!-- Explainer -->
-        <div class="mb-6 pb-6 border-b border-neutral-100">
-          <p class="font-label text-xs uppercase tracking-widest text-neutral-500 mb-2">What this chart shows</p>
-          <p class="font-body text-sm text-neutral-600 leading-relaxed">This graph plots your ManoDhwani probability score across each assessment session over time. Each dot represents one day's result — <span style="color:#22c55e;font-weight:700;">green</span> for low risk (&lt;52%), <span style="color:#f59e0b;font-weight:700;">amber</span> for moderate (52–61%), and <span style="color:#ef4444;font-weight:700;">red</span> for high risk (≥62%). Tracking these scores week over week helps you and your clinician observe whether symptoms are improving, stable, or escalating — making it a key tool for longitudinal mental health monitoring.</p>
+
+      <!-- What is ADET — dropdown -->
+      <div class="mb-4">
+        <button
+          onclick="(function(btn){const body=document.getElementById('adet-explainer');const arrow=document.getElementById('adet-arrow');const open=body.style.display==='block';body.style.display=open?'none':'block';arrow.style.transform=open?'rotate(0deg)':'rotate(180deg)';})(this)"
+          style="width:100%;display:flex;justify-content:space-between;align-items:center;background:rgba(142,0,8,0.04);border:1px solid rgba(142,0,8,0.12);border-radius:1rem;padding:14px 20px;cursor:pointer;transition:background 0.2s;"
+          onmouseover="this.style.background='rgba(142,0,8,0.07)'"
+          onmouseout="this.style.background='rgba(142,0,8,0.04)'">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;">🧠</span>
+            <span class="font-label" style="font-size:13px;font-weight:700;color:#8e0008;text-transform:uppercase;letter-spacing:0.08em;">What is ADET?</span>
+          </div>
+          <span id="adet-arrow" style="font-size:18px;color:#8e0008;transition:transform 0.25s;">▼</span>
+        </button>
+        <div id="adet-explainer" style="display:none;margin-top:2px;background:rgba(255,255,255,0.92);border:1px solid rgba(0,0,0,0.07);border-radius:1rem;padding:24px 28px;">
+          <!-- Simple headline -->
+          <p class="font-headline" style="font-size:1.1rem;font-weight:800;color:#111;margin-bottom:16px;">Think of ADET as your mental health diary — but smarter. 📓</p>
+          <!-- Three plain-English cards -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px;">
+            <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);border-radius:0.875rem;padding:16px;">
+              <div style="font-size:22px;margin-bottom:8px;">📅</div>
+              <p class="font-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#166534;margin-bottom:6px;">Every time you check in</p>
+              <p class="font-body" style="font-size:13px;color:#374151;line-height:1.6;">ManoDhwani gives you a score from 0–100 based on how your voice, words, and answers sound that day. Higher score = more signs of distress.</p>
+            </div>
+            <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:0.875rem;padding:16px;">
+              <div style="font-size:22px;margin-bottom:8px;">📈</div>
+              <p class="font-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#92400e;margin-bottom:6px;">ADET remembers your history</p>
+              <p class="font-body" style="font-size:13px;color:#374151;line-height:1.6;">Each check-in is a dot on your chart. Over time, these dots form a line that shows whether you are getting better 📉, staying the same ➡️, or need more support 📈.</p>
+            </div>
+            <div style="background:rgba(142,0,8,0.05);border:1px solid rgba(142,0,8,0.15);border-radius:0.875rem;padding:16px;">
+              <div style="font-size:22px;margin-bottom:8px;">🔮</div>
+              <p class="font-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#8e0008;margin-bottom:6px;">It even predicts ahead</p>
+              <p class="font-body" style="font-size:13px;color:#374151;line-height:1.6;">The dashed line and open circle show where your score is <em>trending</em> — so you and your doctor can act early, before things get harder.</p>
+            </div>
+          </div>
+          <!-- One-line colour key in plain English -->
+          <div style="background:rgba(0,0,0,0.03);border-radius:0.75rem;padding:14px 18px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
+            <span class="font-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#64748b;font-weight:700;">Dot colour means:</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="width:11px;height:11px;border-radius:50%;background:#22c55e;display:inline-block;"></span><span class="font-body" style="font-size:12px;color:#374151;">🟢 Green — you're doing well (score &lt; 52)</span></span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="width:11px;height:11px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span class="font-body" style="font-size:12px;color:#374151;">🟡 Amber — worth keeping an eye on (52–61)</span></span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="width:11px;height:11px;border-radius:50%;background:#ef4444;display:inline-block;"></span><span class="font-body" style="font-size:12px;color:#374151;">🔴 Red — please talk to someone (62+)</span></span>
+          </div>
         </div>
+      </div>
+
+      <!-- Chart panel -->
+      <div class="glass-panel p-8">
         <!-- Chart -->
         <div id="adet-chart-container" class="flex items-center justify-center min-h-[120px]">
           <p class="font-label text-xs text-neutral-400 uppercase tracking-widest">Complete multiple assessments to see your trend</p>
         </div>
-        <!-- Legend -->
-        <div class="flex items-center gap-6 mt-5 pt-4 border-t border-neutral-100 flex-wrap">
-          <div class="flex items-center gap-2"><div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div><span class="font-label text-[10px] text-neutral-500 uppercase tracking-widest">Low Risk &lt;52%</span></div>
-          <div class="flex items-center gap-2"><div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;"></div><span class="font-label text-[10px] text-neutral-500 uppercase tracking-widest">Moderate 52–61%</span></div>
-          <div class="flex items-center gap-2"><div style="width:10px;height:10px;border-radius:50%;background:#ef4444;"></div><span class="font-label text-[10px] text-neutral-500 uppercase tracking-widest">High Risk ≥62%</span></div>
-          <span class="font-label text-[10px] text-neutral-400 ml-auto">Shows last 7 days with data</span>
+        <!-- What this chart shows — below the chart -->
+        <div class="mt-6 pt-5 border-t border-neutral-100">
+          <p class="font-label text-xs uppercase tracking-widest text-neutral-400 mb-2">Reading this chart</p>
+          <p class="font-body text-sm text-neutral-600 leading-relaxed">This graph plots your ManoDhwani probability score across each assessment session over time. Each <strong>filled dot</strong> is one real session — coloured <span style="color:#22c55e;font-weight:700;">green</span> if your score was low, <span style="color:#f59e0b;font-weight:700;">amber</span> if moderate, or <span style="color:#ef4444;font-weight:700;">red</span> if high. The <strong style="color:#16a34a;">green dashed line</strong> is a 3-session rolling average — it smooths out single-day spikes so you can see the real direction. The <strong style="color:#d97706;">amber dashed line</strong> is the overall trend — if it's climbing, that's a signal to check in with a clinician sooner. The <strong style="color:#94a3b8;">open circle</strong> is where your score is projected to land next session based on your current trend. Tracking these scores week over week helps you and your clinician observe whether things are improving, stable, or escalating.</p>
         </div>
       </div>
     </div>
@@ -652,9 +691,13 @@ function renderResults(result, depressionType, isDepressed) {
 
   // ── Trajectory Chart — wait for Firebase auth to expose loadReports ──
   // Poll up to 30 seconds (60 × 500ms). Firebase onAuthStateChanged can be slow.
+  window._chartRendered = false;
   (function waitForLoadReports(attempts) {
-    if (window.loadReports) {
-      generateAdetChartHtml().then(html => {
+    if (window.loadReports && window.currentUser) {
+      if (window._chartRendered) return;
+      window._chartRendered = true;
+      window._pendingChartRefresh = false;
+      generateAdetChartHtml('_main').then(html => {
         const el = document.getElementById('adet-chart-container');
         if (el) el.innerHTML = html;
       });
@@ -662,7 +705,7 @@ function renderResults(result, depressionType, isDepressed) {
       setTimeout(() => waitForLoadReports(attempts - 1), 500);
     } else {
       const el = document.getElementById('adet-chart-container');
-      if (el) el.innerHTML = `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-4">Could not load history — please refresh the page.</p>`;
+      if (el && !window._chartRendered) el.innerHTML = `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-4">Could not load history — please refresh the page.</p>`;
     }
   })(60);
 
@@ -762,79 +805,193 @@ function _toDate(v) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-async function generateAdetChartHtml() {
+async function generateAdetChartHtml(suffix = '') {
   let reports = [];
-  if (window.loadReports) {
+  if (window.loadReports && window.currentUser) {
     try { reports = await window.loadReports(); } catch(e) { console.error('[chart] loadReports error', e); }
   }
   if (!reports || reports.length === 0) {
     return `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-6">No assessment data found. Complete your first assessment to start tracking.</p>`;
   }
 
-  // Normalise: resolve createdAt to a real JS Date on each report
-  const withDates = reports.map(r => ({ ...r, _date: _toDate(r.createdAt) })).filter(r => r._date);
+  // Resolve dates, filter invalid, deduplicate to one per calendar date (keep latest)
+  const withDates = reports
+    .map(r => ({ ...r, _date: _toDate(r.createdAt) }))
+    .filter(r => r._date);
 
-  if (withDates.length < 2) {
-    return `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-6">Complete assessments on at least two different dates to view your longitudinal trajectory.</p>`;
-  }
-
-  // Deduplicate to one entry per calendar date (keep latest on that day)
   const dailyMap = new Map();
   withDates.forEach(r => {
-    const k = r._date.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
+    const k = r._date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     if (!dailyMap.has(k) || r._date > dailyMap.get(k)._date) dailyMap.set(k, r);
   });
 
-  // Sort chronologically and take last 7 days
-  const daily = [...dailyMap.values()].sort((a,b) => a._date - b._date).slice(-7);
+  // Sort chronologically, take last 7 sessions
+  const sessions = [...dailyMap.values()]
+    .sort((a, b) => a._date - b._date)
+    .slice(-7)
+    .map((r, i, arr) => ({
+      val: r.modelProb != null ? r.modelProb : (r.confidenceScore || 0),
+      label: i === arr.length - 1
+        ? r._date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' (Latest)'
+        : r._date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      isLatest: i === arr.length - 1,
+      riskLevel: r.riskLevel || 'Low',
+    }));
 
-  if (daily.length < 2) {
-    return `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-6">Need assessments on at least two different calendar dates to see the trend.</p>`;
+  if (sessions.length === 0) {
+    return `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-6">No assessment data found.</p>`;
   }
 
-  const W=800, H=200, px=48, py=40;
-  const pW = W-2*px, pH = H-2*py;
-  const stepX = pW / (daily.length - 1);
-  const pts = daily.map((r, i) => {
-    const val = r.modelProb != null ? r.modelProb : (r.confidenceScore || 0);
-    const label = r._date.toLocaleDateString('en-GB', {day:'2-digit', month:'short'});
-    return { x: px + i * stepX, y: H - py - (val / 100 * pH), val, label };
+  // ── Dimensions ──────────────────────────────────────────────────
+  const W = 820, H = 240, PL = 56, PR = 32, PT = 36, PB = 52;
+  const innerW = W - PL - PR, innerH = H - PT - PB;
+
+  // Extend x-axis one slot beyond last session for trend projection
+  const totalSlots = sessions.length + 1;
+  const xScale = i => PL + (i / (totalSlots - 1)) * innerW;
+  const yScale = v => PT + innerH - ((Math.min(Math.max(v, 0), 110) / 110) * innerH);
+
+  // ── 3-session rolling average ────────────────────────────────────
+  const rolling = sessions.map((s, i) => {
+    if (i < 2) return null;
+    return (sessions[i - 2].val + sessions[i - 1].val + s.val) / 3;
   });
 
-  // Area fill under the line
-  const areaPath = `M${pts[0].x},${H-py} ` + pts.map(p=>`L${p.x},${p.y}`).join(' ') + ` L${pts[pts.length-1].x},${H-py} Z`;
+  // ── Linear trend line (least squares) ───────────────────────────
+  const n = sessions.length;
+  const xs = sessions.map((_, i) => i);
+  const ys = sessions.map(s => s.val);
+  const sumX = xs.reduce((a, b) => a + b, 0);
+  const sumY = ys.reduce((a, b) => a + b, 0);
+  const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0);
+  const sumX2 = xs.reduce((a, x) => a + x * x, 0);
+  const denom = n * sumX2 - sumX * sumX;
+  const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+  const intercept = (sumY - slope * sumX) / n;
+  // Trend points: one per session + one projected point
+  const trendPts = Array.from({ length: totalSlots }, (_, i) => intercept + slope * i);
 
-  let svg = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;font-family:'Space Grotesk',sans-serif;">`;
-  svg += `<defs><linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#bb000e" stop-opacity="0.18"/><stop offset="100%" stop-color="#bb000e" stop-opacity="0.01"/></linearGradient></defs>`;
+  // Residual std dev for confidence band
+  const residuals = sessions.map((s, i) => s.val - trendPts[i]);
+  const stdDev = Math.sqrt(residuals.reduce((a, r) => a + r * r, 0) / n);
+  const bandUpper = trendPts.map(v => v + stdDev);
+  const bandLower = trendPts.map(v => v - stdDev);
 
-  // Grid lines
-  [0,25,50,75,100].forEach(l => {
-    const y = H - py - (l / 100 * pH);
-    svg += `<line x1="${px}" y1="${y}" x2="${W-px}" y2="${y}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 3"/>`;
-    svg += `<text x="${px-8}" y="${y+4}" fill="#94a3b8" font-size="10" text-anchor="end">${l}%</text>`;
+  // ── SVG build ────────────────────────────────────────────────────
+  let svg = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;font-family:'Arial','Helvetica',sans-serif;">`;
+
+  // Defs
+  svg += `<defs>
+    <linearGradient id="adetGrad${suffix}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8e0008" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#8e0008" stop-opacity="0.0"/>
+    </linearGradient>
+  </defs>`;
+
+  // Risk zone bands (background)
+  svg += `<rect x="${PL}" y="${yScale(110)}" width="${innerW}" height="${yScale(62) - yScale(110)}" fill="rgba(239,68,68,0.04)"/>`;
+  svg += `<rect x="${PL}" y="${yScale(62)}" width="${innerW}" height="${yScale(52) - yScale(62)}" fill="rgba(245,158,11,0.04)"/>`;
+  svg += `<rect x="${PL}" y="${yScale(52)}" width="${innerW}" height="${yScale(0) - yScale(52)}" fill="rgba(34,197,94,0.04)"/>`;
+
+  // Horizontal grid lines + y-axis labels
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = yScale(v);
+    svg += `<line x1="${PL}" y1="${y}" x2="${PL + innerW}" y2="${y}" stroke="rgba(0,0,0,0.07)" stroke-width="1" stroke-dasharray="4 3"/>`;
+    svg += `<text x="${PL - 8}" y="${y + 4}" text-anchor="end" fill="#94a3b8" font-size="10">${v}%</text>`;
   });
 
-  // Area + line
-  svg += `<path d="${areaPath}" fill="url(#chartGrad)"/>`;
-  svg += `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="#bb000e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  // Confidence band (shaded area around trend)
+  if (n >= 3) {
+    const bandPath = Array.from({ length: totalSlots }, (_, i) =>
+      `${i === 0 ? 'M' : 'L'}${xScale(i)},${yScale(bandUpper[i])}`
+    ).join(' ')
+    + Array.from({ length: totalSlots }, (_, i) => {
+      const ri = totalSlots - 1 - i;
+      return `L${xScale(ri)},${yScale(bandLower[ri])}`;
+    }).join(' ') + ' Z';
+    svg += `<path d="${bandPath}" fill="rgba(245,158,11,0.08)" stroke="none"/>`;
+  }
 
-  // Dots, value labels, date labels
-  pts.forEach(p => {
-    const c = p.val >= 62 ? '#ef4444' : p.val >= 52 ? '#f59e0b' : '#22c55e';
-    svg += `<circle cx="${p.x}" cy="${p.y}" r="6" fill="${c}" stroke="#fff" stroke-width="2"/>`;
-    svg += `<text x="${p.x}" y="${p.y-12}" fill="${c}" font-size="11" font-weight="700" text-anchor="middle">${Math.round(p.val)}%</text>`;
-    svg += `<text x="${p.x}" y="${H-py+18}" fill="#94a3b8" font-size="10" text-anchor="middle">${p.label}</text>`;
+  // Trend line (dashed, extended through projected point)
+  const trendLinePts = Array.from({ length: totalSlots }, (_, i) => `${xScale(i)},${yScale(trendPts[i])}`).join(' ');
+  svg += `<polyline points="${trendLinePts}" fill="none" stroke="#d97706" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.8"/>`;
+
+  // Rolling average line (only where defined — from index 2 onwards)
+  const rollingDefined = rolling
+    .map((v, i) => v !== null ? `${xScale(i)},${yScale(v)}` : null)
+    .filter(Boolean);
+  if (rollingDefined.length >= 2) {
+    svg += `<polyline points="${rollingDefined.join(' ')}" fill="none" stroke="#16a34a" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.85"/>`;
+  }
+
+  // Area fill under the main session line
+  const mainPts = sessions.map((s, i) => ({ x: xScale(i), y: yScale(s.val) }));
+  const areaPath = `M${mainPts[0].x},${yScale(0)} `
+    + mainPts.map(p => `L${p.x},${p.y}`).join(' ')
+    + ` L${mainPts[mainPts.length - 1].x},${yScale(0)} Z`;
+  svg += `<path d="${areaPath}" fill="url(#adetGrad${suffix})"/>`;
+
+  // Main session line
+  svg += `<polyline points="${mainPts.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="#8e0008" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+  // Projected trend point (open circle, dashed connector)
+  const projX = xScale(totalSlots - 1);
+  const projY = yScale(trendPts[totalSlots - 1]);
+  svg += `<line x1="${mainPts[mainPts.length - 1].x}" y1="${mainPts[mainPts.length - 1].y}" x2="${projX}" y2="${projY}" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  svg += `<circle cx="${projX}" cy="${projY}" r="5" fill="#fff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+  svg += `<text x="${projX}" y="${projY - 10}" text-anchor="middle" fill="#94a3b8" font-size="9">~${Math.round(trendPts[totalSlots - 1])}%</text>`;
+
+  // Session dots + value labels
+  sessions.forEach((s, i) => {
+    const x = xScale(i), y = yScale(s.val);
+    const clr = s.val >= 62 ? '#ef4444' : s.val >= 52 ? '#f59e0b' : '#22c55e';
+    const r = s.isLatest ? 7 : 5;
+    const sw = s.isLatest ? 2.5 : 1.5;
+    svg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${clr}" stroke="#fff" stroke-width="${sw}"/>`;
+    svg += `<text x="${x}" y="${y - 12}" text-anchor="middle" fill="${clr}" font-size="10" font-weight="700">${Math.round(s.val)}%</text>`;
   });
+
+  // X-axis session labels
+  sessions.forEach((s, i) => {
+    svg += `<text x="${xScale(i)}" y="${H - PB + 16}" text-anchor="middle" fill="${s.isLatest ? '#8e0008' : '#64748b'}" font-size="9" font-weight="${s.isLatest ? '700' : '400'}">${s.label}</text>`;
+  });
+  // Projected x label
+  svg += `<text x="${projX}" y="${H - PB + 16}" text-anchor="middle" fill="#94a3b8" font-size="9">Projected</text>`;
+
+  // Risk zone right-side labels
+  svg += `<text x="${PL + innerW + 4}" y="${yScale(62) + 4}" fill="rgba(239,68,68,0.5)" font-size="8">High</text>`;
+  svg += `<text x="${PL + innerW + 4}" y="${yScale(52) + 4}" fill="rgba(245,158,11,0.5)" font-size="8">Mod</text>`;
 
   svg += '</svg>';
-  return `<div style="width:100%;overflow-x:auto;padding-bottom:4px;">${svg}</div>`;
+
+  // Legend
+  const legend = `<div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;padding-left:${PL}px;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#8e0008;"></div>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Session score</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#16a34a" stroke-width="2" stroke-dasharray="5 3"/></svg>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">3-session rolling avg</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#d97706" stroke-width="1.5" stroke-dasharray="6 4"/></svg>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Trend line</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:1.5px dashed #94a3b8;"></div>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Projected</span>
+    </div>
+  </div>`;
+
+  return `<div style="width:100%;overflow-x:auto;padding-bottom:4px;">${svg}</div>${legend}`;
 }
 
 // ── Download PDF ───────────────────────────────────────────────────
 window.downloadReport = async function() {
   // Pre-fetch trajectory chart (needs loadReports which may not be set yet)
   const trajectoryChartSvg = await (function waitChart(n) {
-    if (window.loadReports) return generateAdetChartHtml();
+    if (window.loadReports && window.currentUser) return generateAdetChartHtml('_main');
     if (n <= 0) return Promise.resolve('');
     return new Promise(r => setTimeout(() => waitChart(n - 1).then(r), 300));
   })(10);
@@ -1039,8 +1196,8 @@ async function renderProfilePage() {
   const chartEl = document.getElementById('profile-chart');
   if (chartEl) {
     (function waitForChart(n) {
-      if (window.loadReports) {
-        generateAdetChartHtml().then(html => { chartEl.innerHTML = html; });
+      if (window.loadReports && window.currentUser) {
+        generateAdetChartHtml('_profile').then(html => { chartEl.innerHTML = html; });
       } else if (n > 0) {
         setTimeout(() => waitForChart(n - 1), 500);
       }
@@ -1051,21 +1208,30 @@ async function renderProfilePage() {
 async function loadHistory() {
   const listEl = document.getElementById('history-list');
   if (!listEl) return;
-  let reports = [];
-  if (window.loadReports) { try { reports = await window.loadReports(); } catch(e) {} }
-  if (!reports.length) { listEl.innerHTML = '<p class="font-label text-xs text-neutral-400 uppercase tracking-widest">No assessments found. Complete your first analysis to see history here.</p>'; return; }
-  listEl.innerHTML = reports.map(r => {
-    const _rd = _toDate(r.createdAt); const d = _rd ? _rd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-    const prob = Math.round(r.modelProb ?? r.confidenceScore ?? 0);
-    const riskColor = r.riskLevel === 'High' ? '#ef4444' : r.riskLevel === 'Moderate' ? '#f59e0b' : '#22c55e';
-    return `<div class="glass-panel p-5 flex justify-between items-center">
-      <div><p class="font-label text-xs uppercase tracking-widest text-neutral-500 mb-1">${d}</p>
-      <p class="font-headline text-lg font-bold" style="color:${riskColor}">${r.riskLevel || 'Low'} Risk</p>
-      ${r.depressionType ? `<p class="font-body text-sm text-neutral-500">${r.depressionType}</p>` : ''}
-      </div>
-      <div class="text-right"><p class="font-headline text-3xl font-black" style="color:${riskColor}">${prob}%</p><p class="font-label text-[10px] text-neutral-400 uppercase tracking-widest">probability</p></div>
-    </div>`;
-  }).join('');
+  
+  (async function waitForLoadReports(attempts) {
+    if (window.loadReports && window.currentUser) {
+      let reports = [];
+      try { reports = await window.loadReports(); } catch(e) {}
+      if (!reports.length) { listEl.innerHTML = '<p class="font-label text-xs text-neutral-400 uppercase tracking-widest">No assessments found. Complete your first analysis to see history here.</p>'; return; }
+      listEl.innerHTML = reports.map(r => {
+        const _rd = _toDate(r.createdAt); const d = _rd ? _rd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+        const prob = Math.round(r.modelProb ?? r.confidenceScore ?? 0);
+        const riskColor = r.riskLevel === 'High' ? '#ef4444' : r.riskLevel === 'Moderate' ? '#f59e0b' : '#22c55e';
+        return `<div class="glass-panel p-5 flex justify-between items-center">
+          <div><p class="font-label text-xs uppercase tracking-widest text-neutral-500 mb-1">${d}</p>
+          <p class="font-headline text-lg font-bold" style="color:${riskColor}">${r.riskLevel || 'Low'} Risk</p>
+          ${r.depressionType ? `<p class="font-body text-sm text-neutral-500">${r.depressionType}</p>` : ''}
+          </div>
+          <div class="text-right"><p class="font-headline text-3xl font-black" style="color:${riskColor}">${prob}%</p><p class="font-label text-[10px] text-neutral-400 uppercase tracking-widest">probability</p></div>
+        </div>`;
+      }).join('');
+    } else if (attempts > 0) {
+      setTimeout(() => waitForLoadReports(attempts - 1), 500);
+    } else {
+      listEl.innerHTML = '<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-4">Could not load history — please refresh the page.</p>';
+    }
+  })(30);
 }
 </script>
 
@@ -1109,6 +1275,9 @@ async function loadHistory() {
       photo: user.photoURL || null
     };
 
+    console.log('[auth] currentUser set:', window.currentUser.uid);
+    window.loadReports().then(r => console.log('[auth] loadReports test:', r.length, r));
+
     // ── Auto-fill userInfo from Google auth if name is blank ──
     if (!userInfo.name) {
       userInfo.name = displayName;
@@ -1131,9 +1300,10 @@ async function loadHistory() {
     };
 
     // If the trajectory chart is waiting for auth, render it now
-    if (window._pendingChartRefresh) {
+    if (window._pendingChartRefresh && !window._chartRendered) {
       window._pendingChartRefresh = false;
-      generateAdetChartHtml().then(html => {
+      window._chartRendered = true;
+      generateAdetChartHtml('_main').then(html => {
         const el = document.getElementById('adet-chart-container');
         if (el) el.innerHTML = html;
       });

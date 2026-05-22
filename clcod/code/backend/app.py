@@ -1313,6 +1313,20 @@ def _build_report_html(data: dict) -> str:
           </div>
         """
 
+    trajectory_chart_svg = data.get("trajectory_chart_svg", "")
+    trajectory_html = ""
+    if trajectory_chart_svg and trajectory_chart_svg.strip():
+        trajectory_html = f"""
+  <!-- Assessment Trajectory -->
+  <div class="ps-card">
+    <div class="ps-card-title"><div class="ps-card-title-bar"></div> Assessment Trajectory</div>
+    <div style="font-size:13px;color:{C['text_secondary']};line-height:1.7;margin-bottom:12px;">ManoDhwani Probability Score across your last 7 sessions.</div>
+    <div class="trajectory-chart-container" style="text-align:center;margin-top:10px;display:block;">
+      {trajectory_chart_svg}
+    </div>
+  </div>
+"""
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1603,6 +1617,8 @@ body {{
     <div class="ps-card-title"><div class="ps-card-title-bar"></div> Behavioural &amp; Emotional Insights</div>
     <div class="ps-insights-grid">{insights_html}</div>
   </div>
+
+  {trajectory_html}
 
   <!-- Personalised Recommendations -->
   <div class="ps-card">

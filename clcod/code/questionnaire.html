@@ -273,6 +273,8 @@ function qNext() {
 function qPrev() { if (qCurrentIndex > 0) { qCurrentIndex--; qRender(); } }
 
 function classifyDepressionType(answers) {
+  const riskLevel = sessionStorage.getItem('md_riskLevel');
+  if (!riskLevel || riskLevel === 'Low') return null;
   const get = (key) => { const idx = DEPRESSION_QUESTIONS.findIndex(q=>q.key===key); return idx>=0?(answers[idx]??0):0; };
   if (get('postpartum') >= 2) return 'Postpartum Depression';
   if (get('seasonal') >= 2) return 'Seasonal Affective Disorder (SAD)';
@@ -315,7 +317,12 @@ async function completeQuestionnaire() {
       await new Promise(r => setTimeout(r, 100));
     }
     if (window.saveReport) {
-      await window.saveReport({ userInfo:{...userInfo}, riskLevel:aiResult.riskLevel, confidenceScore:aiResult.confidenceScore, modelProb:aiResult.modelProb??null, emotionalSignals:aiResult.emotionalSignals, contributions:aiResult.contributions, recommendations:aiResult.recommendations, insights:aiResult.insights??null, adet:aiResult.adet??null, depressionType, inputModes:{audio:!!audioBase64,text:!!(textInputVal&&textInputVal.trim())}, questionnaire:questionnaireData });
+      try {
+        await window.saveReport({ userInfo:{...userInfo}, riskLevel:aiResult.riskLevel, confidenceScore:aiResult.confidenceScore, modelProb:aiResult.modelProb??null, emotionalSignals:aiResult.emotionalSignals, contributions:aiResult.contributions, recommendations:aiResult.recommendations, insights:aiResult.insights??null, adet:aiResult.adet??null, depressionType, inputModes:{audio:!!audioBase64,text:!!(textInputVal&&textInputVal.trim())}, questionnaire:questionnaireData });
+      } catch(e) {
+        console.error('SAVE FAILED:', e.code, e.message);
+        alert('Warning: Could not save your assessment. Error: ' + (e.code || e.message));
+      }
     }
   }
 
@@ -363,7 +370,7 @@ qRender();
     if (resLink) resLink.href = 'results.html';
 
     window.saveReport = async (reportData) => {
-      try { await addDoc(collection(db, 'users', user.uid, 'reports'), { ...reportData, createdAt: new Date().toISOString() }); } catch(e) {}
+      try { await addDoc(collection(db, 'users', user.uid, 'reports'), { ...reportData, createdAt: new Date().toISOString() }); } catch(e) { console.error('saveReport failed:', e); throw e; }
     };
   });
 </script>
