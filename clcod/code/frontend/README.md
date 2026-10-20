@@ -54,7 +54,8 @@ frontend/
     ├── main.jsx, App.jsx        bootstrapping + router (one lazy chunk per page)
     ├── components/
     │   ├── TopNavBar.jsx        the shared top navbar (8 pages)
-    │   └── SiteFooter.jsx       the footer, all original variants in one place
+    │   ├── SiteFooter.jsx       the footer, all original variants in one place
+    │   └── Silk/                animated WebGL silk background (used on the landing page)
     ├── lib/
     │   ├── page-runtime.js      gives each page its own <head>/<body> state and cleans up on leave
     │   ├── navigation.js        navigateTo(), link interception, old-URL → route map

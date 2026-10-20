@@ -1,8 +1,22 @@
 import { memo } from 'react';
 import { usePageRuntime } from '../../lib/page-runtime.js';
 import TopNavBar from '../../components/TopNavBar.jsx';
+import Silk from '../../components/Silk/Silk.jsx';
 import css from './landing.css?inline';
 import mountLandingPage from './landing.controller.js';
+
+// Animated silk background — tweak the look here (see Silk.jsx for every option).
+const SILK_BACKGROUND = {
+  lightMode: true, // light silk, so the dark headline and grey copy stay readable (like the old image)
+  color: '#c2c2c2',
+  sheenColor: '#ffffff',
+  depth: 0.7,
+  sheen: 0.5,
+  glow: 0.3,
+  speed: 5,
+  scale: 1,
+  noiseIntensity: 1.5,
+};
 
 // Markup moved from index.html <body>.
 function LandingPage() {
@@ -23,6 +37,10 @@ function LandingPage() {
   });
   return (
     <>
+      {/* Fixed, full-viewport animated background behind all content (was a fixed background image). */}
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none' }}>
+        <Silk {...SILK_BACKGROUND} />
+      </div>
       {/* ═══ MAIN SITE CONTENT ═══ */}
       <div id="main-content">
         {/* User Info Modal */}

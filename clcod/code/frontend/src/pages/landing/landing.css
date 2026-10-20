@@ -170,14 +170,7 @@
       background: linear-gradient(135deg, rgba(252, 249, 248, 0.95) 0%, rgba(240, 237, 237, 0.8) 40%, rgba(230, 225, 225, 0.6) 100%);
     }
 
-    /* Standardized silk background */
-    body,
-    .hero-section {
-      background-image: url('/assets/hero_silk_bg.png') !important;
-      background-size: cover !important;
-      background-position: center !important;
-      background-attachment: fixed !important;
-    }
+    /* Background: the animated <Silk> layer in LandingPage.jsx (replaces assets/hero_silk_bg.png). */
 
 /* ── Tailwind (the Play CDN appended its generated <style> after the page's own <head> styles) ── */
 @tailwind base;
