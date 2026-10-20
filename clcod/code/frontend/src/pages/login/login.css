@@ -1,0 +1,29 @@
+/* LoginPage styles — moved verbatim from login.html, in the original cascade order. */
+@import "../../styles/star-border.css"; /* was <link rel="stylesheet" href="assets/css/star-border.css"> */
+@config "./tailwind.config.js";
+
+/* ── <head> <style> blocks ── */
+  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+  .auth-tab-btn{flex:1;padding:10px;border:none;background:transparent;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;border-bottom:2px solid transparent;color:#64748b;}
+  .auth-tab-btn.active{color:#8e0008;border-bottom-color:#8e0008;}
+  .auth-input{width:100%;border:1px solid #e6bdb8;border-radius:6px;padding:10px 14px;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;color:#1c1b1b;outline:none;margin-bottom:12px;box-sizing:border-box;}
+  .auth-input:focus{border-color:#8e0008;box-shadow:0 0 0 3px rgba(142,0,8,0.08);}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  .fade-in{animation:fadeIn 0.5s ease forwards}
+  .nav-pill{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:8px 20px;border-radius:999px;border:1.5px solid rgba(28,27,27,0.12);box-shadow:0 2px 8px rgba(0,0,0,0.07);transition:all 0.25s ease;color:#3a3a3a;background:rgba(255,255,255,0.7);text-decoration:none;display:inline-block;}
+  .nav-pill:hover{background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.13);transform:translateY(-2px);color:#8e0008;border-color:rgba(142,0,8,0.25);}
+  .nav-pill.active{background:#8e0008;color:#fff;border-color:#8e0008;box-shadow:0 4px 16px rgba(142,0,8,0.25);}
+  .amarante-regular { font-family: "Amarante", serif; font-weight: 400; font-style: normal; }
+  .yatra-one-regular { font-family: "Yatra One", system-ui; font-weight: 400; font-style: normal; text-transform: none !important; }
+
+  body, .bg-fixed-image {
+    background-image: url('/assets/hero_silk_bg.png') !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+  }
+
+/* ── Tailwind (the Play CDN appended its generated <style> after the page's own <head> styles) ── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

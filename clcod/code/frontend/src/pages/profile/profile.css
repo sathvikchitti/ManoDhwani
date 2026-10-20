@@ -1,0 +1,118 @@
+/* ProfilePage styles — moved verbatim from profile.html, in the original cascade order. */
+@config "./tailwind.config.js";
+
+/* ── <head> <style> blocks ── */
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-image: url('/assets/hero_silk_bg.png') !important;
+      background-size: cover !important;
+      background-position: center !important;
+      background-attachment: fixed !important;
+      color: #111111;
+    }
+
+    .font-headline {
+      font-family: 'Epilogue', sans-serif
+    }
+
+    .font-label {
+      font-family: 'Space Grotesk', sans-serif
+    }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
+    }
+
+    .glass-panel {
+      background: rgba(240, 240, 240, 0.85);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+      border-radius: 2.5rem;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .glass-panel:hover {
+      transform: translateY(-8px) scale(1.01);
+      box-shadow: 0 40px 80px rgba(0, 0, 0, 0.18);
+      background: rgba(255, 255, 255, 0.95);
+      border-color: rgba(142, 0, 8, 0.25);
+    }
+
+    /* Chart tabs */
+    .pf-tab {
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: rgba(0, 0, 0, 0.06);
+      color: #64748b
+    }
+
+    .pf-tab.active {
+      background: #8e0008;
+      color: #fff
+    }
+
+    /* Session rows */
+    .session-row {
+      background: rgba(245, 245, 245, 0.85);
+      backdrop-filter: blur(12px);
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 1.75rem;
+      transition: all 0.3s ease;
+    }
+
+    @media(min-width:640px) {
+      .session-row {
+        flex-direction: row;
+        align-items: center
+      }
+    }
+
+    .session-row:hover {
+      background: #ffffff;
+      transform: scale(1.02) translateY(-2px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+      border-color: rgba(142, 0, 8, 0.3);
+    }
+
+    .risk-pill {
+      padding: 4px 14px;
+      border-radius: 9999px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      white-space: nowrap
+    }
+
+    .amarante-regular {
+      font-family: "Amarante", serif;
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    .yatra-one-regular {
+      font-family: "Yatra One", system-ui;
+      font-weight: 400;
+      font-style: normal;
+      text-transform: none !important;
+    }
+
+/* ── Tailwind (the Play CDN appended its generated <style> after the page's own <head> styles) ── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

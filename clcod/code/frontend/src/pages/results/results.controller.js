@@ -1,0 +1,903 @@
+/**
+ * ResultsPage logic — the <script> blocks of the original results.html, ported verbatim.
+ *
+ * Only mechanical SPA wiring differs from the original (see MIGRATION.md):
+ *   • "page.html" links/redirects → routes, window.location.href = … → navigateTo(…)
+ *   • DOMContentLoaded → onReady(…), document/window listeners → on(target, …)
+ *   • timers, fetch and onAuthStateChanged come from the page scope, so they stop when you navigate away
+ *     (a full page load used to do that). Classic scripts run first, then module scripts — same as before.
+ */
+import { auth, db } from '../../lib/firebase-config.js';
+import { collection, getDocs, query, orderBy, getDoc, doc } from 'firebase/firestore';
+
+export default function mountResultsPage(scope) {
+  const { setTimeout, fetch, onAuthStateChanged, navigateTo, onReady } = scope;
+  scope.globals(['_lastReportId', '_chartRendered', '_pendingChartRefresh', 'downloadReport']);
+
+  // ───────────── <script> #1 (classic) ─────────────
+// ── State ──────────────────────────────────────────────────────────
+let userInfo = JSON.parse(sessionStorage.getItem('md_userInfo') || '{"name":"","age":"","gender":""}');
+let aiResult = JSON.parse(sessionStorage.getItem('md_aiResult') || 'null');
+
+// ── Historical report detection ─────────────────────────────────────
+const _historicalReport = JSON.parse(sessionStorage.getItem('md_historical_report') || 'null');
+const _isHistoricalView = !!_historicalReport;
+// Clear so next fresh session isn't affected
+if (_isHistoricalView) sessionStorage.removeItem('md_historical_report');
+
+const FLASK_API_URL = 'https://sense123-psychsense.hf.space';
+
+// ── Page Nav ───────────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const pg = document.getElementById('page-' + id);
+  if (pg) { pg.classList.add('active'); window.scrollTo(0,0); }
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+onReady(() => {
+  const pending = sessionStorage.getItem('pendingPageTransition');
+  if (pending) {
+    sessionStorage.removeItem('pendingPageTransition');
+    if (pending === 'profile') { showPage('profile'); renderProfilePage(); return; }
+  }
+  // Try to render results
+  if (aiResult) {
+    const isDepressed = aiResult.riskLevel === 'Moderate' || aiResult.riskLevel === 'High';
+    renderResults(aiResult, aiResult.depressionType, isDepressed);
+    showPage('results');
+  } else {
+    // No result — redirect
+    navigateTo('/analysis');
+  }
+});
+
+// ── Doctors Data ───────────────────────────────────────────────────
+const DOCTORS_DATA = {
+  'Major Depressive Disorder (MDD)':[
+    {name:'Dr. K. Chandrasekhar',specialization:'Consultant Psychiatrist – Mood Disorders',workplace:'Asha Hospital, Banjara Hills'},
+    {name:'Dr. P. Chytanya Deepak',specialization:'Bipolar & OCD Clinic, Neuromodulation',workplace:'Asha Hospital, Banjara Hills'},
+    {name:'Dr. Madhu Vamsi',specialization:'Psychiatrist – Adult Depression & Anxiety',workplace:'MV Clinics, Bagh Lingampally'},
+    {name:'Dr. Nithin Kondapuram',specialization:'Consultant Psychiatrist (NIMHANS-trained)',workplace:'Aster Prime Hospital, Ameerpet'},
+    {name:'Dr. Boppana Sridhar',specialization:'Consultant Psychiatrist & Psychotherapist',workplace:'Likeminds Clinic, Banjara Hills'},
+  ],
+  'Persistent Depressive Disorder (Dysthymia)':[
+    {name:'Dr. Ajay Kumar Saxena',specialization:'General Psychiatry – Chronic Mood Disorders',workplace:'Asha Hospital, Banjara Hills'},
+    {name:'Dr. P. Raghurami Reddy',specialization:'General Psychiatry – Inpatient & Outpatient',workplace:'Asha Hospital, Banjara Hills'},
+    {name:'Dr. Praveen S. Gopan',specialization:'Consultant Psychiatrist',workplace:'DKR Mind Clinic, Barkatpura'},
+    {name:'Dr. K. Srinivas & team',specialization:'Psychiatry & Neuromodulation (rTMS)',workplace:'KARLA Mind 36 Jubilee, Jubilee Hills'},
+    {name:'Chetana Hospital Team',specialization:'Multidisciplinary Psychiatry & Psychology',workplace:'Chetana Hospital, Secunderabad'},
+  ],
+  'Atypical Depression':[
+    {name:'Dr. P. Chytanya Deepak',specialization:'Mood Disorders & Neuromodulation',workplace:'Asha Hospital, Banjara Hills'},
+    {name:'Dr. K. Srinivas & team',specialization:'rTMS, Neurofeedback & Psychiatric Care',workplace:'KARLA Mind 36 Jubilee, Jubilee Hills'},
+    {name:'Dr. Madhu Vamsi',specialization:'Psychiatrist – Adult Mood Disorders',workplace:'MV Clinics, Bagh Lingampally'},
+    {name:'Dr. Nithin Kondapuram',specialization:'Consultant Psychiatrist (Hospital-based)',workplace:'Aster Prime Hospital, Ameerpet'},
+  ],
+  'Seasonal Affective Disorder (SAD)':[
+    {name:'Dr. K. Chandrasekhar',specialization:'Senior Consultant Psychiatrist',workplace:'Asha Hospital, Banjara Hills'},
+    {name:'Dr. K. Srinivas & team',specialization:'Neuromodulation, Biofeedback & Psychotherapy',workplace:'KARLA Mind 36 Jubilee, Jubilee Hills'},
+    {name:'Dr. Boppana Sridhar',specialization:'Outpatient Psychiatrist – Mood Monitoring',workplace:'Likeminds Clinic, Banjara Hills'},
+    {name:'Dr. Praveen S. Gopan',specialization:'Consultant Psychiatrist – Seasonal Patterns',workplace:'DKR Mind Clinic, Barkatpura'},
+  ],
+  'Postpartum Depression':[
+    {name:'Asha Hospital – Women\'s Wellness Team',specialization:'Women\'s Mental Health & Psychiatry',workplace:'Asha Hospital, Banjara Hills'},
+    {name:'Rainbow Children\'s Hospital & BirthRight',specialization:'Obstetrics, Gynaecology & Maternity',workplace:'Banjara Hills, Hyderabad'},
+    {name:'Dr. Madhu Vamsi',specialization:'Psychiatrist – Postpartum Mood Disorders',workplace:'MV Clinics, Bagh Lingampally'},
+  ],
+  'Depressive Episode':[
+    {name:'Dr. K. Chandrasekhar',specialization:'Consultant Psychiatrist – Mood Disorders',workplace:'Asha Hospital, Banjara Hills'},
+    {name:'Dr. Madhu Vamsi',specialization:'Psychiatrist – Adult Depression & Anxiety',workplace:'MV Clinics, Bagh Lingampally'},
+    {name:'Dr. Nithin Kondapuram',specialization:'Consultant Psychiatrist (NIMHANS-trained)',workplace:'Aster Prime Hospital, Ameerpet'},
+    {name:'Dr. Boppana Sridhar',specialization:'Consultant Psychiatrist & Psychotherapist',workplace:'Likeminds Clinic, Banjara Hills'},
+    {name:'Dr. Praveen S. Gopan',specialization:'Consultant Psychiatrist',workplace:'DKR Mind Clinic, Barkatpura'},
+  ],
+};
+
+// ── Render Results ─────────────────────────────────────────────────
+function renderResults(result, depressionType, isDepressed) {
+  // Re-read userInfo from sessionStorage in case auth just filled it in
+  userInfo = JSON.parse(sessionStorage.getItem('md_userInfo') || '{\"name\":\"\",\"age\":\"\",\"gender\":\"\"}');
+  const name = userInfo.name || 'Anonymous';
+
+  // Use historical date if viewing a past report, otherwise now
+  const _reportDate = (result.createdAt && _isHistoricalView) ? (_toDate(result.createdAt) || new Date()) : new Date();
+  const reportId = result.id ? `MD-${result.id.slice(0,8).toUpperCase()}` : ('MD-' + _reportDate.getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000));
+  window._lastReportId = reportId;
+  const dateStr = _reportDate.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
+  const timeStr = _reportDate.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+  const modes = ['audio','text'].filter(m => result?.contributions?.[m] > 0).map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(' · ') || 'Text';
+
+  const DEPRESSION_INFO = {
+    'Major Depressive Disorder (MDD)':{short:'MDD',description:'MDD is characterised by persistent low mood, loss of interest, and a range of physical and cognitive symptoms lasting at least two weeks.'},
+    'Postpartum Depression':{short:'Postpartum Depression',description:'PPD occurs after childbirth and is marked by intense sadness, anxiety, and exhaustion that interfere with the ability to care for oneself or the baby.'},
+    'Seasonal Affective Disorder (SAD)':{short:'SAD',description:'SAD is a recurrent depression tied to seasonal changes, typically emerging in autumn/winter when daylight hours shorten.'},
+    'Atypical Depression':{short:'Atypical Depression',description:'Atypical depression features mood reactivity — the ability to feel better in response to positive events — along with hypersomnia and increased appetite.'},
+    'Persistent Depressive Disorder (Dysthymia)':{short:'Dysthymia',description:'Dysthymia is a chronic, lower-grade depression lasting two or more years, causing significant long-term impairment.'},
+    'Depressive Episode':{short:'Depressive Episode',description:'A sustained period of depressed mood, reduced energy, and diminished interest in activities. Warrants a full clinical assessment.'},
+  };
+  const depInfo = DEPRESSION_INFO[depressionType] || null;
+  const displayPercent = result.modelProb ?? result.confidenceScore;
+
+  // ── Header ──
+  document.getElementById('results-patient').textContent = `Patient: ${name} · ID: ${reportId}`;
+  document.getElementById('results-report-meta').textContent = `Generated ${dateStr} ${timeStr} · Mode: ${modes} · ManoDhwani v2.1.0`;
+
+  // ── Historical view banner ──
+  const existingBanner = document.getElementById('historical-view-banner');
+  if (existingBanner) existingBanner.remove();
+  if (_isHistoricalView) {
+    const banner = document.createElement('div');
+    banner.id = 'historical-view-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9998;background:rgba(30,41,59,0.96);backdrop-filter:blur(12px);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 4px 24px rgba(0,0,0,0.18);';
+    banner.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="material-symbols-outlined" style="color:#94a3b8;font-size:18px;">history</span>
+        <span style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;color:#e2e8f0;text-transform:uppercase;letter-spacing:0.08em;">Viewing Historical Report</span>
+        <span style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:#64748b;">${dateStr} · ${timeStr}</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="window.downloadReport()" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:9999px;padding:6px 14px;color:#e2e8f0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:11px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
+          <span class="material-symbols-outlined" style="font-size:14px;">download</span>Download PDF
+        </button>
+        <button onclick="mdNavigate('/profile')" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:9999px;padding:6px 14px;color:#e2e8f0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:11px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
+          <span class="material-symbols-outlined" style="font-size:14px;">arrow_back</span>Back to Profile
+        </button>
+      </div>
+    `;
+    document.body.prepend(banner);
+    // Offset page content so it's not hidden under the banner
+    document.body.style.paddingTop = '48px';
+  }
+
+  // ── Patient Info ──
+  const patGrid = document.getElementById('patient-info-grid');
+  if (patGrid) {
+    patGrid.innerHTML = [
+      {label:'Full Name', value:userInfo.name||'Anonymous'},
+      {label:'Age', value:userInfo.age?userInfo.age+' years':'—'},
+      {label:'Gender', value:userInfo.gender||'—'},
+      {label:'Date', value:dateStr},
+    ].map(c=>`<div><p class="font-label text-neutral-500 text-[10px] uppercase tracking-widest mb-1">${c.label}</p><p class="font-body text-neutral-900 text-sm font-medium">${c.value}</p></div>`).join('');
+  }
+
+  // ── Alert Banner ──
+  const banner = document.getElementById('results-alert-banner');
+  if (banner) {
+    if (isDepressed) {
+      banner.style.cssText = 'background:#FEF2F2;border-color:#ef4444;color:#991b1b;width:100%;border-left-width:4px;padding:1rem;margin-bottom:3rem;display:flex;align-items:flex-start;gap:1rem;';
+      banner.innerHTML = `<span class="material-symbols-outlined text-red-600 mt-0.5" style="font-variation-settings:'FILL' 1;">warning</span><div><h3 class="font-label text-red-700 font-bold text-sm tracking-wider uppercase mb-1">${result.riskLevel} Risk Detected</h3><p class="text-neutral-800 text-sm">Please review the recommendations carefully. Prompt professional evaluation is advised.</p></div>`;
+    } else {
+      banner.style.cssText = 'background:#F0FDF4;border-color:#22c55e;color:#166534;width:100%;border-left-width:4px;padding:1rem;margin-bottom:3rem;display:flex;align-items:flex-start;gap:1rem;';
+      banner.innerHTML = `<span class="material-symbols-outlined text-emerald-600 mt-0.5" style="font-variation-settings:'FILL' 1;">check_circle</span><div><h3 class="font-label text-emerald-700 font-bold text-sm tracking-wider uppercase mb-1">Low Risk</h3><p class="text-neutral-800 text-sm">No severe depressive signals detected. Continue to monitor your wellbeing periodically.</p></div>`;
+    }
+  }
+
+  // ── Exec Summary ──
+  const ringDescEl = document.getElementById('ring-desc');
+  if (ringDescEl) {
+    if (!isDepressed) {
+      ringDescEl.textContent = "ManoDhwani's multimodal analysis did not identify significant markers of depression. The combined signals placed this assessment in the Low Risk category.";
+    } else {
+      ringDescEl.textContent = depressionType
+        ? `ManoDhwani identified signals consistent with ${depressionType}. The assessment falls in the ${result.riskLevel} Risk category, with an overall severity score of ${displayPercent}%.`
+        : `Multimodal analysis indicates a ${result.riskLevel.toLowerCase()} level of depressive symptoms.`;
+    }
+  }
+  const typeBadge = document.getElementById('depression-type-badge');
+  const typeLabel = document.getElementById('depression-type-label');
+  if (typeBadge && typeLabel) {
+    if (isDepressed && depressionType) {
+      typeBadge.style.display = 'block';
+      typeBadge.textContent = depInfo?.short || depressionType;
+      typeLabel.textContent = '';
+    } else { typeBadge.style.display = 'none'; }
+  }
+
+  // ── Metric Tiles ──
+  const confEl = document.getElementById('results-confidence');
+  if (confEl) {
+    confEl.textContent = `${displayPercent}`;
+    // Color follows riskLevel from backend — High=red, Moderate=amber, Low=green
+    confEl.style.color = !isDepressed ? '#22c55e' : (result.riskLevel === 'High' ? '#ef4444' : '#f59e0b');
+  }
+  const severityFill = document.getElementById('severity-bar-fill');
+  if (severityFill) setTimeout(() => { severityFill.style.width = `${displayPercent}%`; }, 200);
+  const sevRangeEl = document.getElementById('severity-range-label');
+  if (sevRangeEl) {
+    if (!isDepressed) sevRangeEl.textContent = 'Normal range (< 52%)';
+    else if (result.riskLevel === 'High') sevRangeEl.textContent = 'High risk range (≥ 62%)';
+    else sevRangeEl.textContent = 'Moderate risk range (52–62%)';
+  }
+  const riskEl = document.getElementById('results-risk');
+  const riskSubEl = document.getElementById('results-risk-sub');
+  if (riskEl) {
+    if (!isDepressed) { riskEl.textContent = 'Low'; riskEl.style.color = '#22c55e'; if(riskSubEl) riskSubEl.textContent = 'Low levels'; }
+    else { riskEl.textContent = result.riskLevel; riskEl.style.color = result.riskLevel === 'High' ? '#ef4444' : '#f59e0b'; if(riskSubEl) riskSubEl.textContent = result.riskLevel === 'High' ? 'Urgent review' : 'Intervention advised'; }
+  }
+  const depTypeNameEl = document.getElementById('results-dep-type-name');
+  const depTypeDescEl = document.getElementById('results-dep-type-desc');
+  if (depTypeNameEl && depTypeDescEl) {
+    if (isDepressed && depressionType) { depTypeNameEl.textContent = depInfo?.short || depressionType; depTypeDescEl.textContent = depInfo?.description || ''; }
+    else if (!isDepressed) { depTypeNameEl.textContent = 'No disorder'; depTypeNameEl.style.color = '#22c55e'; depTypeDescEl.textContent = 'No significant depressive markers at this time.'; }
+    else { depTypeNameEl.textContent = 'Depressive Episode'; depTypeDescEl.textContent = 'A depressive episode was identified. Clinical assessment advised.'; }
+  }
+
+  // ── Contributions ──
+  const c = result.contributions || {};
+  [['text','text'],['audio','audio'],['questionnaire','quest']].forEach(([key,id]) => {
+    const val = c[key] ?? 0;
+    const valEl = document.getElementById(`contrib-${id}-val`);
+    if (valEl) valEl.textContent = `${val}%`;
+    const progEl = document.getElementById(`contrib-${id}`);
+    if (progEl) setTimeout(() => { progEl.style.width = `${val}%`; }, 200);
+  });
+
+  // ── Emotional Signals ──
+  const sigContainer = document.getElementById('signals-container');
+  if (sigContainer) {
+    const signals = isDepressed ? (result.emotionalSignals || ['Low Mood']) : ['Emotional Stability','Resilience','Coherent Thought'];
+    const clr = isDepressed ? 'background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);color:#6d28d9' : 'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);color:#166534';
+    sigContainer.innerHTML = signals.map(s => `<span class="signal-tag" style="${clr}">${s}</span>`).join('');
+  }
+
+  // ── Insights ──
+  const insightsGrid = document.getElementById('insights-grid');
+  if (insightsGrid) {
+    const defs = [
+      {key:'audio',icon:'🎙️',bg:'#E6F1FB',title:'Voice & Audio Signals'},
+      {key:'text',icon:'📝',bg:'#EAF3DE',title:'Language & Text Signals'},
+      {key:'questionnaire',icon:'⚡',bg:'#FAEEDA',title:'Questionnaire Insights'},
+      
+    ];
+    insightsGrid.innerHTML = defs.map(def => {
+      const ins = result.insights?.[def.key];
+      const body = ins?.points?.filter(p => p && p !== 'undefined').join('. ') || 'Analysis complete.';
+      return `<div class="glass-panel p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style="background:${def.bg}">${def.icon}</div>
+          <p class="font-label text-xs uppercase tracking-widest text-neutral-600">${def.title}</p>
+        </div>
+        <p class="font-body text-sm text-neutral-700 leading-relaxed">${body}</p>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Trajectory Chart — wait for Firebase auth to expose loadReports ──
+  // Poll up to 30 seconds (60 × 500ms). Firebase onAuthStateChanged can be slow.
+  window._chartRendered = false;
+  (function waitForLoadReports(attempts) {
+    if (window.loadReports && window.currentUser) {
+      if (window._chartRendered) return;
+      window._chartRendered = true;
+      window._pendingChartRefresh = false;
+      generateAdetChartHtml('_main').then(html => {
+        const el = document.getElementById('adet-chart-container');
+        if (el) el.innerHTML = html;
+      });
+    } else if (attempts > 0) {
+      setTimeout(() => waitForLoadReports(attempts - 1), 500);
+    } else {
+      const el = document.getElementById('adet-chart-container');
+      if (el && !window._chartRendered) el.innerHTML = `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-4">Could not load history — please refresh the page.</p>`;
+    }
+  })(60);
+
+  // Also register a hook so if auth resolves after the chart already gave up,
+  // it still re-renders when loadReports becomes available.
+  window._pendingChartRefresh = true;
+
+  // ── Risk Factors ──
+  const riskCard = document.getElementById('risk-analysis-card');
+  const rfList = document.getElementById('risk-factors-list');
+  if (riskCard && rfList) {
+    if (isDepressed) {
+      riskCard.style.display = 'block';
+      const factors = [
+        {label:`Severity score ≥ ${displayPercent}%`,body:"The model's output crosses the clinical high-risk threshold established from validated depression screening benchmarks."},
+        {label:'Multimodal agreement',body:'Audio and text signals are independently flagging distress, strengthening the reliability of the prediction.'},
+        depressionType && depInfo ? {label:depInfo.short,body:depInfo.description} : null,
+        {label:'Negative cognitive patterns',body:'Language analysis detected persistent distress framing and reduced future-oriented speech.'},
+      ].filter(Boolean);
+      rfList.innerHTML = factors.map(f=>`
+        <div class="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200">
+          <div class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0 mt-1.5"></div>
+          <p class="font-body text-sm text-amber-900"><strong class="font-label">${f.label} —</strong> ${f.body}</p>
+        </div>`).join('');
+    } else {
+      riskCard.style.display = 'none';
+    }
+  }
+
+  // ── Recommendations ──
+  const recContainer = document.getElementById('recommendations-container');
+  if (recContainer) {
+    const recsList = result.recommendations || [];
+    const col1 = recsList.slice(0, Math.ceil(recsList.length/3));
+    const col2 = recsList.slice(Math.ceil(recsList.length/3), Math.ceil(recsList.length/3*2));
+    const col3 = recsList.slice(Math.ceil(recsList.length/3*2));
+    const makeCol = (items, headLabel, headColor, offset) => `
+      <div class="glass-panel p-6">
+        <p class="font-label text-[10px] uppercase tracking-widest font-bold mb-4" style="color:${headColor}">${headLabel}</p>
+        ${items.map((r,i)=>`<div class="flex gap-3 py-3 border-b border-neutral-100 last:border-b-0"><span class="font-label text-xs font-bold text-neutral-400 flex-shrink-0 min-w-[18px]">${offset+i+1}.</span><p class="font-body text-sm text-neutral-700 leading-relaxed">${r}</p></div>`).join('')}
+      </div>`;
+    recContainer.innerHTML = [
+      col1.length ? makeCol(col1,'Immediate Actions','#dc2626',0) : '',
+      col2.length ? makeCol(col2,'Professional Support','#1d4ed8',col1.length) : '',
+      col3.length ? makeCol(col3,'Lifestyle Support','#166534',col1.length+col2.length) : '',
+    ].join('');
+  }
+
+  // ── Next Steps ──
+  const nextList = document.getElementById('next-steps-list');
+  if (nextList) {
+    const steps = isDepressed ? [
+      {label:'Today',text:'Share this report with a family member or trusted friend.'},
+      {label:'Within 24–48 hours',text:'Book an appointment with a psychiatrist or clinical psychologist. Bring this report.'},
+      {label:'Seek urgent help if',text:'You experience thoughts of self-harm. Tele MANAS program offers free, 24/7 mental health support via the short code 14416 or toll-free number 1800-89-14416 or your nearest emergency department.'},
+      {label:'Follow-up',text:'Schedule a re-assessment in 2–4 weeks to track progress.'},
+    ] : [
+      {label:'Keep monitoring',text:'Your assessment shows low risk. Schedule a follow-up in 4–6 weeks.'},
+      {label:'Share this report',text:'You can share this result with a trusted friend or family member as a baseline record.'},
+    ];
+    nextList.innerHTML = steps.map((s,i) => `
+      <div class="flex gap-4 items-start">
+        <div class="w-7 h-7 rounded-full border border-neutral-300 flex items-center justify-center text-xs font-medium text-neutral-500 flex-shrink-0 font-label">${i+1}</div>
+        <p class="font-body text-sm text-neutral-700 leading-relaxed pt-0.5"><strong class="text-neutral-900">${s.label}:</strong> ${s.text}</p>
+      </div>`).join('');
+  }
+
+  // ── Doctors ──
+  const doctorsCard = document.getElementById('doctors-card');
+  const doctorsList = document.getElementById('doctors-list');
+  if (doctorsCard && doctorsList) {
+    if (isDepressed) {
+      const docType = depressionType || 'Depressive Episode';
+      const doctors = DOCTORS_DATA[docType] || DOCTORS_DATA['Depressive Episode'];
+      doctorsCard.style.display = 'block';
+      document.getElementById('doctors-city-label').textContent = 'Recommended Doctors in Hyderabad';
+      document.getElementById('doctors-city-subtitle').textContent = `Based on detected condition: ${docType}. Always verify availability before booking.`;
+      doctorsList.innerHTML = `<table class="doctors-table"><thead><tr><th>Doctor</th><th>Specialization</th><th>Hospital</th></tr></thead><tbody>${doctors.map(d=>`<tr><td style="font-weight:600">${d.name}</td><td>${d.specialization}</td><td>${d.workplace}</td></tr>`).join('')}</tbody></table>`;
+    } else { doctorsCard.style.display = 'none'; }
+  }
+
+  // Show content
+  document.getElementById('results-loading').style.display = 'none';
+  document.getElementById('results-content').style.display = 'block';
+}
+
+// ── Trajectory Chart ───────────────────────────────────────────────
+// ── Resolve Firestore Timestamp or string/number → JS Date ──────────
+function _toDate(v) {
+  if (!v) return null;
+  // Firestore Timestamp object: {seconds, nanoseconds}
+  if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000);
+  // Firestore Timestamp with toDate() method
+  if (typeof v.toDate === 'function') return v.toDate();
+  // ISO string, number ms, etc.
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+async function generateAdetChartHtml(suffix = '') {
+  let reports = [];
+  if (window.loadReports && window.currentUser) {
+    try { reports = await window.loadReports(); } catch(e) { console.error('[chart] loadReports error', e); }
+  }
+  if (!reports || reports.length === 0) {
+    return `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-6">No assessment data found. Complete your first assessment to start tracking.</p>`;
+  }
+
+  // Resolve dates, filter invalid, deduplicate to one per calendar date (keep latest)
+  const withDates = reports
+    .map(r => ({ ...r, _date: _toDate(r.createdAt) }))
+    .filter(r => r._date);
+
+  const dailyMap = new Map();
+  withDates.forEach(r => {
+    const k = r._date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    if (!dailyMap.has(k) || r._date > dailyMap.get(k)._date) dailyMap.set(k, r);
+  });
+
+  // Sort chronologically, take last 7 sessions
+  const sessions = [...dailyMap.values()]
+    .sort((a, b) => a._date - b._date)
+    .slice(-7)
+    .map((r, i, arr) => ({
+      val: r.modelProb != null ? r.modelProb : (r.confidenceScore || 0),
+      label: i === arr.length - 1
+        ? r._date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' (Latest)'
+        : r._date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      isLatest: i === arr.length - 1,
+      riskLevel: r.riskLevel || 'Low',
+    }));
+
+  if (sessions.length === 0) {
+    return `<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-6">No assessment data found.</p>`;
+  }
+
+  // ── Dimensions ──────────────────────────────────────────────────
+  const W = 820, H = 240, PL = 56, PR = 32, PT = 36, PB = 52;
+  const innerW = W - PL - PR, innerH = H - PT - PB;
+
+  // Extend x-axis one slot beyond last session for trend projection
+  const totalSlots = sessions.length + 1;
+  const xScale = i => PL + (i / (totalSlots - 1)) * innerW;
+  const yScale = v => PT + innerH - ((Math.min(Math.max(v, 0), 110) / 110) * innerH);
+
+  // ── 3-session rolling average ────────────────────────────────────
+  const rolling = sessions.map((s, i) => {
+    if (i < 2) return null;
+    return (sessions[i - 2].val + sessions[i - 1].val + s.val) / 3;
+  });
+
+  // ── Linear trend line (least squares) ───────────────────────────
+  const n = sessions.length;
+  const xs = sessions.map((_, i) => i);
+  const ys = sessions.map(s => s.val);
+  const sumX = xs.reduce((a, b) => a + b, 0);
+  const sumY = ys.reduce((a, b) => a + b, 0);
+  const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0);
+  const sumX2 = xs.reduce((a, x) => a + x * x, 0);
+  const denom = n * sumX2 - sumX * sumX;
+  const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+  const intercept = (sumY - slope * sumX) / n;
+  // Trend points: one per session + one projected point
+  const trendPts = Array.from({ length: totalSlots }, (_, i) => intercept + slope * i);
+
+  // Residual std dev for confidence band
+  const residuals = sessions.map((s, i) => s.val - trendPts[i]);
+  const stdDev = Math.sqrt(residuals.reduce((a, r) => a + r * r, 0) / n);
+  const bandUpper = trendPts.map(v => v + stdDev);
+  const bandLower = trendPts.map(v => v - stdDev);
+
+  // ── SVG build ────────────────────────────────────────────────────
+  let svg = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;font-family:'Arial','Helvetica',sans-serif;">`;
+
+  // Defs
+  svg += `<defs>
+    <linearGradient id="adetGrad${suffix}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8e0008" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#8e0008" stop-opacity="0.0"/>
+    </linearGradient>
+  </defs>`;
+
+  // Risk zone bands (background)
+  svg += `<rect x="${PL}" y="${yScale(110)}" width="${innerW}" height="${yScale(62) - yScale(110)}" fill="rgba(239,68,68,0.04)"/>`;
+  svg += `<rect x="${PL}" y="${yScale(62)}" width="${innerW}" height="${yScale(52) - yScale(62)}" fill="rgba(245,158,11,0.04)"/>`;
+  svg += `<rect x="${PL}" y="${yScale(52)}" width="${innerW}" height="${yScale(0) - yScale(52)}" fill="rgba(34,197,94,0.04)"/>`;
+
+  // Horizontal grid lines + y-axis labels
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = yScale(v);
+    svg += `<line x1="${PL}" y1="${y}" x2="${PL + innerW}" y2="${y}" stroke="rgba(0,0,0,0.07)" stroke-width="1" stroke-dasharray="4 3"/>`;
+    svg += `<text x="${PL - 8}" y="${y + 4}" text-anchor="end" fill="#94a3b8" font-size="10">${v}%</text>`;
+  });
+
+  // Confidence band (shaded area around trend)
+  if (n >= 3) {
+    const bandPath = Array.from({ length: totalSlots }, (_, i) =>
+      `${i === 0 ? 'M' : 'L'}${xScale(i)},${yScale(bandUpper[i])}`
+    ).join(' ')
+    + Array.from({ length: totalSlots }, (_, i) => {
+      const ri = totalSlots - 1 - i;
+      return `L${xScale(ri)},${yScale(bandLower[ri])}`;
+    }).join(' ') + ' Z';
+    svg += `<path d="${bandPath}" fill="rgba(245,158,11,0.08)" stroke="none"/>`;
+  }
+
+  // Trend line (dashed, extended through projected point)
+  const trendLinePts = Array.from({ length: totalSlots }, (_, i) => `${xScale(i)},${yScale(trendPts[i])}`).join(' ');
+  svg += `<polyline points="${trendLinePts}" fill="none" stroke="#d97706" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.8"/>`;
+
+  // Rolling average line (only where defined — from index 2 onwards)
+  const rollingDefined = rolling
+    .map((v, i) => v !== null ? `${xScale(i)},${yScale(v)}` : null)
+    .filter(Boolean);
+  if (rollingDefined.length >= 2) {
+    svg += `<polyline points="${rollingDefined.join(' ')}" fill="none" stroke="#16a34a" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.85"/>`;
+  }
+
+  // Area fill under the main session line
+  const mainPts = sessions.map((s, i) => ({ x: xScale(i), y: yScale(s.val) }));
+  const areaPath = `M${mainPts[0].x},${yScale(0)} `
+    + mainPts.map(p => `L${p.x},${p.y}`).join(' ')
+    + ` L${mainPts[mainPts.length - 1].x},${yScale(0)} Z`;
+  svg += `<path d="${areaPath}" fill="url(#adetGrad${suffix})"/>`;
+
+  // Main session line
+  svg += `<polyline points="${mainPts.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="#8e0008" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+  // Projected trend point (open circle, dashed connector)
+  const projX = xScale(totalSlots - 1);
+  const projY = yScale(trendPts[totalSlots - 1]);
+  svg += `<line x1="${mainPts[mainPts.length - 1].x}" y1="${mainPts[mainPts.length - 1].y}" x2="${projX}" y2="${projY}" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  svg += `<circle cx="${projX}" cy="${projY}" r="5" fill="#fff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+  svg += `<text x="${projX}" y="${projY - 10}" text-anchor="middle" fill="#94a3b8" font-size="9">~${Math.round(trendPts[totalSlots - 1])}%</text>`;
+
+  // Session dots + value labels
+  sessions.forEach((s, i) => {
+    const x = xScale(i), y = yScale(s.val);
+    const clr = s.val >= 62 ? '#ef4444' : s.val >= 52 ? '#f59e0b' : '#22c55e';
+    const r = s.isLatest ? 7 : 5;
+    const sw = s.isLatest ? 2.5 : 1.5;
+    svg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${clr}" stroke="#fff" stroke-width="${sw}"/>`;
+    svg += `<text x="${x}" y="${y - 12}" text-anchor="middle" fill="${clr}" font-size="10" font-weight="700">${Math.round(s.val)}%</text>`;
+  });
+
+  // X-axis session labels
+  sessions.forEach((s, i) => {
+    svg += `<text x="${xScale(i)}" y="${H - PB + 16}" text-anchor="middle" fill="${s.isLatest ? '#8e0008' : '#64748b'}" font-size="9" font-weight="${s.isLatest ? '700' : '400'}">${s.label}</text>`;
+  });
+  // Projected x label
+  svg += `<text x="${projX}" y="${H - PB + 16}" text-anchor="middle" fill="#94a3b8" font-size="9">Projected</text>`;
+
+  // Risk zone right-side labels
+  svg += `<text x="${PL + innerW + 4}" y="${yScale(62) + 4}" fill="rgba(239,68,68,0.5)" font-size="8">High</text>`;
+  svg += `<text x="${PL + innerW + 4}" y="${yScale(52) + 4}" fill="rgba(245,158,11,0.5)" font-size="8">Mod</text>`;
+
+  svg += '</svg>';
+
+  // Legend
+  const legend = `<div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;padding-left:${PL}px;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#8e0008;"></div>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Session score</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#16a34a" stroke-width="2" stroke-dasharray="5 3"/></svg>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">3-session rolling avg</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#d97706" stroke-width="1.5" stroke-dasharray="6 4"/></svg>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Trend line</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:1.5px dashed #94a3b8;"></div>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Projected</span>
+    </div>
+  </div>`;
+
+  return `<div style="width:100%;overflow-x:auto;padding-bottom:4px;">${svg}</div>${legend}`;
+}
+
+// ── Download PDF ───────────────────────────────────────────────────
+window.downloadReport = async function() {
+  // Pre-fetch trajectory chart (needs loadReports which may not be set yet)
+  const trajectoryChartSvg = await (function waitChart(n) {
+    if (window.loadReports && window.currentUser) return generateAdetChartHtml('_main');
+    if (n <= 0) return Promise.resolve('');
+    return new Promise(r => setTimeout(() => waitChart(n - 1).then(r), 300));
+  })(10);
+
+  // Show loading state on button
+  const btn = document.querySelector('[onclick="window.downloadReport()"], [data-onclick="window.downloadReport()"]');
+  const originalHTML = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = btn.innerHTML.replace(/Download Report|Downloading/gi, 'Generating…'); }
+
+  const isDepressed = aiResult?.riskLevel === 'Moderate' || aiResult?.riskLevel === 'High';
+  const displayPercent = isDepressed ? (aiResult?.modelProb ?? aiResult?.confidenceScore ?? '—') : null;
+  const now = new Date();
+  const dateStr  = now.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
+  const timeStr  = now.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  const reportId = window._lastReportId || ('PSY-' + now.getFullYear() + '-' + Math.floor(1000 + Math.random()*9000));
+  const depType  = (aiResult?.depressionType && aiResult.depressionType !== '—') ? aiResult.depressionType : (isDepressed ? 'Depressive Episode' : null);
+  const riskClass = aiResult?.riskLevel || 'Low';
+  const uName    = userInfo.name || 'Anonymous';
+  const uAge     = userInfo.age ? userInfo.age + ' years' : '—';
+  const uGender  = userInfo.gender || '—';
+  const modes    = ['Audio','Text'].filter(m => aiResult?.contributions?.[m.toLowerCase()] > 0).join(' · ') || 'Text';
+
+  // ── Build the clean data payload for the backend PDF generator ──────
+  const DEPRESSION_INFO_FULL = {
+    'Major Depressive Disorder (MDD)':               { desc: 'MDD is characterised by persistent low mood, loss of interest, and a range of physical and cognitive symptoms lasting at least two weeks.' },
+    'Postpartum Depression':                          { desc: 'PPD occurs after childbirth, marked by intense sadness, anxiety, and exhaustion that interfere with caring for oneself or the baby.' },
+    'Seasonal Affective Disorder (SAD)':              { desc: 'SAD is a recurrent depression tied to seasonal changes, typically emerging in autumn/winter when daylight hours shorten. Symptoms include hypersomnia, increased appetite, and low energy. Light therapy is a first-line treatment.' },
+    'Atypical Depression':                            { desc: 'Atypical depression features mood reactivity along with hypersomnia and increased appetite.' },
+    'Persistent Depressive Disorder (Dysthymia)':    { desc: 'Dysthymia is a chronic, lower-grade depression lasting two or more years, causing significant long-term impairment.' },
+    'Depressive Episode':                             { desc: 'A sustained period of depressed mood, reduced energy, and diminished interest in activities. Warrants a full clinical assessment.' },
+  };
+
+  const probPct        = typeof displayPercent === 'number' ? displayPercent : 0;
+  const depInfoFull    = depType ? (DEPRESSION_INFO_FULL[depType] || { desc: 'A depressive episode was identified. Clinical assessment is advised.' }) : null;
+
+  // Insights — map from aiResult to the generate_report.py schema
+  const insightDefs2 = [
+    { key: 'audio',         type: 'audio',         icon: 'MIC', title: 'Voice & Audio Signals' },
+    { key: 'text',          type: 'text',           icon: 'TXT', title: 'Language & Text Signals' },
+    { key: 'cognitive',     type: 'facial',         icon: 'VID', title: 'Facial & Visual Cues' },
+    { key: 'questionnaire', type: 'questionnaire',  icon: 'QST', title: 'Questionnaire Insights' },
+  ];
+  const insights = insightDefs2.map(def => {
+    const ins = aiResult?.insights?.[def.key];
+    let body;
+    if (def.key === 'cognitive') {
+      body = 'Visual modality (ViT) is trained and ready — video analysis will be available in a future update.';
+    } else {
+      const pts = (ins?.points || []).filter(p => p && p !== 'undefined');
+      body = pts.join('. ') || (def.key === 'audio' ? 'No audio input provided — audio modality not analysed.' : 'Analysis complete.');
+    }
+    return { type: def.type, icon: def.icon, title: def.title, body };
+  });
+
+  // Risk factors
+  const riskFactors = isDepressed ? [
+    { label: `Severity score ≥ ${displayPercent || 60}%`,
+      body: "The model's output crosses the clinical high-risk threshold established from validated depression screening benchmarks." },
+    { label: 'Multimodal agreement',
+      body: `${modes} signals are independently flagging distress, strengthening the reliability of the prediction.` },
+    depInfoFull && depType
+      ? { label: `${depType} context`, body: depInfoFull.desc }
+      : null,
+    { label: 'Negative cognitive patterns',
+      body: 'Language analysis detected persistent distress framing and reduced future-oriented speech, associated with higher-risk presentations.' },
+  ].filter(Boolean) : [];
+
+  // Recommendations — split flat array into three columns for the template
+  const recs = aiResult?.recommendations || [];
+  const chunk = Math.ceil(recs.length / 3);
+  const recommendations = {
+    immediate:    recs.slice(0, chunk),
+    professional: recs.slice(chunk, chunk * 2),
+    lifestyle:    recs.slice(chunk * 2),
+  };
+
+  // Next steps
+  const nextSteps = isDepressed ? [
+    { label: 'Today',                        body: 'Share this report with a family member, partner, or trusted friend. You do not need to face this alone.' },
+    { label: 'Within 24–48 hours',           body: 'Book an appointment with a psychiatrist or clinical psychologist. Bring this report to the appointment.' },
+    { label: 'Seek urgent help immediately if', body: 'You experience thoughts of self-harm or a sudden worsening of symptoms. Call  Tele MANAS program offers free, 24/7 mental health support via the short code 14416 or toll-free number 1800-89-14416 or go to your nearest emergency department.' },
+    { label: 'Follow-up session',            body: 'Schedule a re-assessment with ManoDhwani in 2–4 weeks to track progress after professional intervention begins.' },
+  ] : [
+    { label: 'Today',            body: 'Share this report with a trusted friend or family member as a baseline record.' },
+    { label: 'Follow-up session',body: 'Schedule a re-assessment with ManoDhwani in 2–4 weeks to track your wellbeing.' },
+  ];
+
+  // Doctors — map DOCTORS_DATA format (workplace) → generate_report.py format (place)
+  let doctors = [];
+  if (isDepressed) {
+    const docKey   = depType || 'Depressive Episode';
+    const rawDocs  = DOCTORS_DATA[docKey] || DOCTORS_DATA['Depressive Episode'];
+    doctors = rawDocs.map(d => ({ name: d.name, specialization: d.specialization, place: d.workplace }));
+  }
+
+  // Disorder description for the report
+  const disorderDesc = depInfoFull
+    ? `<strong>${depType}</strong> — ${depInfoFull.desc}`
+    : '';
+  const disorderTags = depType
+    ? [depType, ...(aiResult?.tags || [])]
+    : ['No Disorder Detected'];
+
+  // Probability range label
+  const probRangeLabel = isDepressed
+    ? (probPct >= 75 ? 'Severe range (≥ 75%)' : 'Moderate range (51–75%)')
+    : 'Normal range (< 51%)';
+
+  const reportPayload = {
+    report_id:          reportId,
+    risk_level:         isDepressed ? `${riskClass} Risk` : 'Low Risk',
+    risk_sub_label:     isDepressed ? (riskClass === 'High' ? 'Immediate action required' : 'Intervention advised') : 'Low levels',
+    analysis_mode:      `Multimodal (${modes})`,
+    probability_pct:    probPct,
+    prob_range_label:   probRangeLabel,
+    disorder_name:      depType || 'No disorder detected',
+    disorder_short_desc: depInfoFull ? 'Detected via multimodal analysis' : '',
+    disorder_desc:      disorderDesc,
+    disorder_tags:      disorderTags,
+    patient: {
+      name:         uName,
+      age:          userInfo.age || '—',
+      gender:       userInfo.gender || '—',
+      session_date: dateStr,
+    },
+    executive_summary: isDepressed
+      ? `ManoDhwani's multimodal analysis identified significant markers of <strong>${depType || 'a depressive episode'}</strong>. The combined signal places this assessment in the <strong>${riskClass} Risk</strong> category, with an overall severity score of ${displayPercent}%.`
+      : "ManoDhwani's multimodal analysis did not identify significant markers of depression. The combined signals placed this assessment in the <strong>Low Risk</strong> category.",
+    risk_factors:     riskFactors,
+    insights,
+    recommendations,
+    next_steps:       nextSteps,
+    city:             'Hyderabad',
+    doctors,
+    trajectory_chart_svg: trajectoryChartSvg,
+  };
+
+  // ── Call backend and stream PDF to user ──────────────────────────
+  try {
+    const resp = await fetch(`${FLASK_API_URL}/generate-pdf`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(reportPayload),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+
+    const blob     = await resp.blob();
+    const url      = URL.createObjectURL(blob);
+    const anchor   = document.createElement('a');
+    anchor.href    = url;
+    anchor.download = `ManoDhwani_Report_${uName.replace(/\s+/g,'_')}_${dateStr.replace(/\s/g,'_')}.pdf`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('[ManoDhwani] PDF generation failed:', err);
+    alert('Could not generate PDF: ' + err.message + '\n\nMake sure the ManoDhwani backend is running.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+  }
+};
+
+
+
+
+// ── Profile ────────────────────────────────────────────────────────
+function showProfileTab(tab) {
+  document.getElementById('profile-tab-overview').style.display = tab === 'overview' ? 'block' : 'none';
+  document.getElementById('profile-tab-history').style.display = tab === 'history' ? 'block' : 'none';
+  if (tab === 'history') loadHistory();
+}
+
+async function renderProfilePage() {
+  showPage('profile');
+
+  if (window.currentUser) {
+    const u = window.currentUser;
+    const nm = u.name || u.email || 'User';
+    document.getElementById('profile-name').textContent = nm;
+    document.getElementById('profile-email').textContent = u.email || '';
+    const av = u.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(nm)}&background=bb000e&color=fff&size=80`;
+    document.getElementById('profile-photo').src = av;
+  }
+
+  let reports = [];
+  if (window.loadReports) { try { reports = await window.loadReports(); } catch(e) {} }
+  document.getElementById('stat-total').textContent = reports.length || 0;
+  if (reports.length > 0) {
+    const latest = reports[0];
+    document.getElementById('stat-latest-risk').textContent = latest.riskLevel || '—';
+    document.getElementById('stat-latest-risk').style.color = latest.riskLevel === 'High' ? '#ef4444' : latest.riskLevel === 'Moderate' ? '#f59e0b' : '#22c55e';
+    const prob = latest.modelProb ?? latest.confidenceScore ?? 0;
+    document.getElementById('stat-latest-score').innerHTML = `${Math.round(prob)}<span class="text-2xl">%</span>`;
+  }
+
+  // Chart — wait for loadReports to be ready
+  const chartEl = document.getElementById('profile-chart');
+  if (chartEl) {
+    (function waitForChart(n) {
+      if (window.loadReports && window.currentUser) {
+        generateAdetChartHtml('_profile').then(html => { chartEl.innerHTML = html; });
+      } else if (n > 0) {
+        setTimeout(() => waitForChart(n - 1), 500);
+      }
+    })(60);
+  }
+}
+
+async function loadHistory() {
+  const listEl = document.getElementById('history-list');
+  if (!listEl) return;
+  
+  (async function waitForLoadReports(attempts) {
+    if (window.loadReports && window.currentUser) {
+      let reports = [];
+      try { reports = await window.loadReports(); } catch(e) {}
+      if (!reports.length) { listEl.innerHTML = '<p class="font-label text-xs text-neutral-400 uppercase tracking-widest">No assessments found. Complete your first analysis to see history here.</p>'; return; }
+      listEl.innerHTML = reports.map(r => {
+        const _rd = _toDate(r.createdAt); const d = _rd ? _rd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+        const prob = Math.round(r.modelProb ?? r.confidenceScore ?? 0);
+        const riskColor = r.riskLevel === 'High' ? '#ef4444' : r.riskLevel === 'Moderate' ? '#f59e0b' : '#22c55e';
+        return `<div class="glass-panel p-5 flex justify-between items-center">
+          <div><p class="font-label text-xs uppercase tracking-widest text-neutral-500 mb-1">${d}</p>
+          <p class="font-headline text-lg font-bold" style="color:${riskColor}">${r.riskLevel || 'Low'} Risk</p>
+          ${r.depressionType ? `<p class="font-body text-sm text-neutral-500">${r.depressionType}</p>` : ''}
+          </div>
+          <div class="text-right"><p class="font-headline text-3xl font-black" style="color:${riskColor}">${prob}%</p><p class="font-label text-[10px] text-neutral-400 uppercase tracking-widest">probability</p></div>
+        </div>`;
+      }).join('');
+    } else if (attempts > 0) {
+      setTimeout(() => waitForLoadReports(attempts - 1), 500);
+    } else {
+      listEl.innerHTML = '<p class="font-label text-xs text-neutral-400 uppercase tracking-widest text-center py-4">Could not load history — please refresh the page.</p>';
+    }
+  })(30);
+}
+
+  // Top-level functions of classic <script>s were globals; inline handlers & innerHTML onclick="" rely on that.
+  // SPA addition: the historical-view banner lives directly in <body>; a page unload used to remove it.
+  scope.onCleanup(() => { const b = document.getElementById('historical-view-banner'); if (b) b.remove(); });
+
+  scope.expose({ showPage, renderResults, _toDate, generateAdetChartHtml, showProfileTab, renderProfilePage, loadHistory });
+
+  // ───────────── <script type="module"> #2 ─────────────
+  {
+  onAuthStateChanged(auth, user => {
+    const loginBtn = document.getElementById('login-signup-btn');
+    const badgeWrap = document.getElementById('user-badge');
+    const avatarNav = document.getElementById('user-avatar');
+    const nameNavEl = document.getElementById('user-name');
+    const resLink = document.getElementById('nav-results-link');
+
+    if (!user) {
+      if (loginBtn) loginBtn.style.display = '';
+      if (badgeWrap) badgeWrap.classList.add('hidden');
+      if (resLink) resLink.href = '/login';
+      navigateTo('/login');
+      return;
+    }
+
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (badgeWrap) badgeWrap.classList.replace('hidden', 'flex');
+    const displayName = user.displayName || user.email || 'User';
+    // Always use fresh photoURL to avoid stale previous-user avatar
+    const avatarUrl = user.photoURL
+      ? user.photoURL + (user.photoURL.includes('?') ? '&' : '?') + 't=' + Date.now()
+      : `https://ui-avatars.com/api/?background=bb000e&color=fff&size=128&name=${encodeURIComponent(displayName)}`;
+    
+    if (avatarNav) { avatarNav.src = ''; avatarNav.src = avatarUrl; }
+    if (nameNavEl) nameNavEl.textContent = displayName.split(' ')[0];
+    if (resLink) resLink.href = '/results';
+
+    window.currentUser = {
+      uid: user.uid,
+      name: displayName,
+      email: user.email,
+      photo: user.photoURL || null
+    };
+
+    console.log('[auth] currentUser set:', window.currentUser.uid);
+    window.loadReports().then(r => console.log('[auth] loadReports test:', r.length, r));
+
+    // ── Auto-fill userInfo from Google auth if name is blank ──
+    if (!userInfo.name) {
+      userInfo.name = displayName;
+      sessionStorage.setItem('md_userInfo', JSON.stringify(userInfo));
+      // Update the rendered patient info grid if already on screen
+      const patGrid = document.getElementById('patient-info-grid');
+      if (patGrid && patGrid.children.length > 0) {
+        const nameCell = patGrid.querySelector('p.font-body');
+        if (nameCell) nameCell.textContent = displayName;
+      }
+    }
+
+    // Expose Firestore helpers
+    window.loadReports = async function() {
+      try {
+        const q = query(collection(db, 'users', user.uid, 'reports'), orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch(e) { console.error('loadReports:', e); return []; }
+    };
+
+    // If the trajectory chart is waiting for auth, render it now
+    if (window._pendingChartRefresh && !window._chartRendered) {
+      window._pendingChartRefresh = false;
+      window._chartRendered = true;
+      generateAdetChartHtml('_main').then(html => {
+        const el = document.getElementById('adet-chart-container');
+        if (el) el.innerHTML = html;
+      });
+    }
+
+    window.loadUserProfile = async function() {
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        return snap.exists() ? snap.data() : null;
+      } catch(e) { console.error('loadUserProfile:', e); return null; }
+    };
+
+    // Sign out
+    window.firebaseSignOut = async function() {
+      const { signOut } = await import('firebase/auth');
+      await signOut(auth);
+      navigateTo('/');
+    };
+  });
+  }
+
+}

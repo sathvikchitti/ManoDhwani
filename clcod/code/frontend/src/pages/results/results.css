@@ -1,0 +1,52 @@
+/* ResultsPage styles — moved verbatim from results.html, in the original cascade order. */
+@import "../../styles/star-border.css"; /* was <link rel="stylesheet" href="assets/css/star-border.css"> */
+@config "./tailwind.config.js";
+
+/* ── <head> <style> blocks ── */
+  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+  .amarante-regular { font-family: "Amarante", serif; font-weight: 400; font-style: normal; }
+  .yatra-one-regular { font-family: "Yatra One", system-ui; font-weight: 400; font-style: normal; text-transform: none !important; }
+  .page{display:none}.page.active{display:block}
+  /* Result page accent blobs */
+  .blob-tl{position:fixed;top:-10%;left:-10%;width:40%;height:40%;background:#00e5ff;border-radius:50%;mix-blend-mode:multiply;filter:blur(150px);opacity:0.08;pointer-events:none}
+  .blob-br{position:fixed;bottom:-10%;right:-10%;width:50%;height:50%;background:#ff00ff;border-radius:50%;mix-blend-mode:multiply;filter:blur(200px);opacity:0.08;pointer-events:none}
+  /* Doctors table */
+  .doctors-table{width:100%;border-collapse:collapse}
+  .doctors-table th,.doctors-table td{padding:10px 14px;text-align:left;font-size:12px;border-bottom:1px solid rgba(0,0,0,0.08)}
+  .doctors-table th{font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#64748b}
+  .doctors-table td{color:#1e293b}
+  /* Premium Glass Panel (No Rounding) */
+  .glass-panel {
+    background: rgba(240, 240, 240, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    border-radius: 0 !important;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .glass-panel:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  }
+  /* Contribution bar */
+  .contrib-bar{height:6px;border-radius:0;background:#e2e8f0;overflow:hidden}
+  .contrib-fill{height:100%;border-radius:0;transition:width 0.6s ease;width:0}
+  /* Signals tags */
+  .signal-tag{display:inline-block;border-radius:8px;padding:4px 12px;font-size:11px;font-weight:700;letter-spacing:0.05em}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .animate-spin{animation:spin 1s linear infinite}
+  .bg-fixed-image {
+    background-image: url('/assets/hero_silk_bg.png') !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+  }
+  .nav-pill { font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:8px 20px; border-radius:999px; border:1.5px solid rgba(28,27,27,0.12); box-shadow:0 2px 8px rgba(0,0,0,0.07); transition:all 0.25s ease; color:#3a3a3a; background:rgba(255,255,255,0.7); text-decoration:none; display:inline-block; }
+  .nav-pill:hover { background:#fff; box-shadow:0 4px 16px rgba(0,0,0,0.13); transform:translateY(-2px); color:#8e0008; border-color:rgba(142,0,8,0.25); }
+  .nav-pill.active { background:#8e0008; color:#fff; border-color:#8e0008; box-shadow:0 4px 16px rgba(142,0,8,0.25); }
+
+/* ── Tailwind (the Play CDN appended its generated <style> after the page's own <head> styles) ── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

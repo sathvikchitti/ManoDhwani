@@ -1,0 +1,9 @@
+/*
+ * Global CSS only. Every page brings its own styles + Tailwind build (src/pages/<page>/<page>.css),
+ * injected while that page is mounted — exactly as each .html file had its own <head>.
+ */
+
+/* The React root must not add a box: pages style <body> directly (e.g. `flex flex-col` on <body>). */
+#root {
+  display: contents;
+}

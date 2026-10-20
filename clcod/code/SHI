@@ -3,5 +3,6 @@ pip install -r requirements.txt --only-binary=:all:
 pip install transformers -U
 python app.py
 
-in code(for frontend):
-npx serve . 
+in code/frontend (React app):
+npm install
+npm run dev 

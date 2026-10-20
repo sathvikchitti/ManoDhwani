@@ -1,0 +1,15 @@
+/* ErrorPage styles — moved verbatim from error.html, in the original cascade order. */
+@config "./tailwind.config.js";
+
+/* ── <head> <style> blocks ── */
+  body { background-color: #000000; color: #f3f0ef; }
+  .nav-pill { font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:8px 20px; border-radius:999px; border:1.5px solid rgba(28,27,27,0.12); box-shadow:0 2px 8px rgba(0,0,0,0.07); transition:all 0.25s ease; color:#3a3a3a; background:rgba(255,255,255,0.7); text-decoration:none; display:inline-block; }
+  .nav-pill:hover { background:#fff; box-shadow:0 4px 16px rgba(0,0,0,0.13); transform:translateY(-2px); color:#8e0008; border-color:rgba(142,0,8,0.25); }
+  .nav-pill.active { background:#8e0008; color:#fff; border-color:#8e0008; box-shadow:0 4px 16px rgba(142,0,8,0.25); }
+  .amarante-regular { font-family: "Amarante", serif; font-weight: 400; font-style: normal; }
+  .yatra-one-regular { font-family: "Yatra One", system-ui; font-weight: 400; font-style: normal; text-transform: none !important; }
+
+/* ── Tailwind (the Play CDN appended its generated <style> after the page's own <head> styles) ── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
